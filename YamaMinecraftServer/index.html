@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YamaMinecraftServer - 公式サイト</title>
+    <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- 基本設定 --- */
+        :root {
+            --primary-color: #4CAF50; /* マイクらっぽい緑 */
+            --accent-color: #FFC107; /* アクセントの黄色 */
+            --bg-dark: #1a1a1a;
+            --bg-card: #2d2d2d;
+            --text-color: #f0f0f0;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* --- ヘッダー & ヒーローエリア --- */
+        header {
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1607653111153-b54b891c08f6?q=80&w=2070&auto=format&fit=crop'); /* 背景画像のURL */
+            background-size: cover;
+            background-position: center;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            font-family: 'DotGothic16', sans-serif;
+            font-size: 4rem;
+            margin: 0;
+            color: var(--primary-color);
+            text-shadow: 4px 4px 0px #000;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+        }
+
+        /* サーバーIP表示エリア */
+        .server-ip-box {
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px 30px;
+            border-radius: 8px;
+            border: 2px solid var(--primary-color);
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        .ip-label {
+            font-size: 0.9rem;
+            color: #aaa;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .ip-address {
+            font-family: 'DotGothic16', sans-serif;
+            font-size: 1.8rem;
+            color: var(--accent-color);
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: 0.3s;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            background-color: #3d8b40;
+            transform: translateY(-2px);
+        }
+
+        /* --- コンテンツ共通 --- */
+        section {
+            padding: 80px 20px;
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        h2 {
+            font-family: 'DotGothic16', sans-serif;
+            font-size: 2.5rem;
+            margin-bottom: 40px;
+            border-bottom: 3px solid var(--primary-color);
+            display: inline-block;
+            padding-bottom: 10px;
+        }
+
+        /* --- 特徴セクション --- */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+
+        .feature-card {
+            background-color: var(--bg-card);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+
+        /* --- 参加方法セクション --- */
+        .step-box {
+            background-color: var(--bg-card);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+        }
+
+        .step-number {
+            background-color: var(--primary-color);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+
+        /* --- フッター --- */
+        footer {
+            background-color: #111;
+            padding: 40px 20px;
+            text-align: center;
+            color: #888;
+        }
+
+        .social-links a {
+            color: white;
+            margin: 0 10px;
+            text-decoration: none;
+        }
+
+        /* --- レスポンシブ対応 --- */
+        @media (max-width: 768px) {
+            h1 { font-size: 2.5rem; }
+            .ip-address { font-size: 1.4rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>MINECRAFT SERVER</h1> <p class="subtitle">冒険と建築、そして仲間との出会い。</p>
+        
+        <div class="server-ip-box">
+            <span class="ip-label">SERVER ADDRESS (Bedrock Edition)</span>
+            <span class="ip-address">yama0027.f5.si</span> </div>
+            <span class="ip-label">ポート番号</span>
+            <span class="ip-address">19132</span> </div>
+        <p style="font-size: 0.9rem;">Version: 最新バージョン</p> <a href="#how-to-join" class="btn">参加方法を見る</a>
+    </header>
+
+    <section id="about">
+        <h2>ABOUT</h2>
+        <p>
+            ここは初心者から上級者まで楽しめる、24時間稼働のサバイバルサーバーです。<br>
+            <br>
+            一人でのんびりスローライフを送るもよし、<br>
+            巨大な街を作るもよし。自由な世界があなたを待っています。
+        </p>
+    </section>
+
+
+    <section id="how-to-join">
+        <h2>HOW TO JOIN</h2>
+        <div style="max-width: 600px; margin: 0 auto;">
+            <div class="step-box">
+                <div class="step-number">1</div>
+                <div>Minecraft Bedrock Edition を <strong>最新バージョン</strong> で起動してください。</div>
+            </div>
+            <div class="step-box">
+                <div class="step-number">2</div>
+                <div>プレイ > サーバーを追加 をクリックします。</div>
+            </div>
+            <div class="step-box">
+                <div class="step-number">3</div>
+                <div>サーバーアドレスに <strong>yama0027.f5.si</strong> と入力して完了！</div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2025 My Minecraft Server. All Rights Reserved.</p>
+        <p style="font-size: 0.8rem;">Not affiliated with Mojang Studios.</p>
+    </footer>
+
+</body>
+</html>

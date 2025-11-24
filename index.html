@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YamaSites - Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- 全体の設定 --- */
+        :root {
+            /* テーマカラー設定 */
+            --bg-gradient: linear-gradient(120deg, #84fab0 0%, #8fd3f4 100%);
+            --card-bg: #ffffff;
+            --text-main: #333;
+            --text-sub: #666;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-image: var(--bg-gradient);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- ヘッダー部分 --- */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin: 0;
+            color: #fff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            letter-spacing: 2px;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            margin-top: 10px;
+            color: #fff;
+            opacity: 0.9;
+            font-weight: normal;
+        }
+
+        /* --- グリッドレイアウト（カードを並べる） --- */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 25px;
+            width: 90%;
+            max-width: 1000px;
+            padding: 20px;
+        }
+
+        /* --- カードのデザイン --- */
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 20px;
+            padding: 30px 20px;
+            text-decoration: none; /* リンクの下線を消す */
+            color: var(--text-main);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ホバー時の動き */
+        .card:hover {
+            transform: translateY(-7px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+        }
+
+        /* --- カード内の要素 --- */
+        .card-icon {
+            font-size: 3.5rem;
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .card-desc {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            line-height: 1.5;
+        }
+
+        /* 矢印アイコン */
+        .arrow {
+            margin-top: 20px;
+            font-weight: bold;
+            color: #ccc;
+            transition: color 0.3s;
+        }
+        .card:hover .arrow {
+            color: #333;
+        }
+
+        /* --- それぞれの色味設定 --- */
+        /* Blog: 温かみのある色 */
+        .card.blog .card-title { color: #ff9a9e; }
+        
+        /* Minecraft: 草ブロックのような緑 */
+        .card.minecraft .card-title { color: #4facfe; }
+        
+        /* Chat: 爽やかな青 */
+        .card.chat .card-title { color: #43e97b; }
+
+
+        /* --- スマホ対応 --- */
+        @media (max-width: 600px) {
+            h1 { font-size: 2rem; }
+            .grid-container { width: 95%; gap: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>YamaSites</h1>
+        <h2>ここにはいろいろあります</h2>
+    </header>
+
+    <div class="grid-container">
+        
+        <a href="YamaBlog/index.html" class="card blog">
+            <div class="card-icon">📝</div>
+            <div class="card-title">YamaBlog</div>
+            <div class="card-desc">日々の記録や思いつきを<br>自由に綴っています。</div>
+            <div class="arrow">Go →</div>
+        </a>
+
+        <a href="YamaMinecraftServer/index.html" class="card minecraft">
+            <div class="card-icon">⛏️</div>
+            <div class="card-title">YamaServer</div>
+            <div class="card-desc">マインクラフトサーバーの<br>参加方法やルールはこちら。</div>
+            <div class="arrow">Go →</div>
+        </a>
+
+        <a href="YamaChat/index.html" class="card chat">
+            <div class="card-icon">💬</div>
+            <div class="card-title">YamaChat</div>
+            <div class="card-desc">誰でも参加できるチャット。<br>ここから会話を始めよう。</div>
+            <div class="arrow">Go →</div>
+        </a>
+
+    </div>
+
+</body>
+</html>

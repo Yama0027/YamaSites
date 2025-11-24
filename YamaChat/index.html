@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YamaChat - Start</title>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- 全体の設定 --- */
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            /* 背景：爽やかな山の空気をイメージしたグラデーション */
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            font-family: 'M PLUS Rounded 1c', sans-serif; /* 丸っこい優しいフォント */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+        }
+
+        /* --- 真ん中のカード --- */
+        .container {
+            background-color: rgba(255, 255, 255, 0.9); /* 半透明の白 */
+            padding: 50px 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            transition: transform 0.3s ease;
+        }
+
+        /* スマホで見た時に少し浮き上がる演出 */
+        .container:hover {
+            transform: translateY(-5px);
+        }
+
+        /* --- タイトルとアイコン --- */
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5rem;
+            color: #333;
+        }
+
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        p {
+            margin: 0 0 30px 0;
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        /* --- ボタンのデザイン --- */
+        .chat-btn {
+            display: inline-block;
+            background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%); /* 明るい青緑 */
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.2rem;
+            padding: 15px 40px;
+            border-radius: 50px; /* 角丸 */
+            box-shadow: 0 4px 15px rgba(0, 201, 255, 0.4);
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            box-sizing: border-box; /* パディングを含めて幅を計算 */
+        }
+
+        /* ボタンにカーソルを乗せた時の動き */
+        .chat-btn:hover {
+            background: linear-gradient(90deg, #00b7e6 0%, #7bed88 100%);
+            box-shadow: 0 6px 20px rgba(0, 201, 255, 0.6);
+            transform: scale(1.03); /* 少し大きくなる */
+        }
+
+        .chat-btn:active {
+            transform: scale(0.98); /* クリックした時に少し凹む */
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <span class="icon">⛰️💬</span>
+        
+        <h1>YamaChat</h1>
+        <p>シンプルなチャットを楽しもう。<br>ここからすぐに参加できます。</p>
+
+        <a class="chat-btn" href="https://script.google.com/macros/s/AKfycby-y8uTrBrCj7uUbQXi98BsjK9FO-NwCFeb0eSu0DBdSHaHdSbm1ccPu30jJpD6BfcH/exec" target="_blank">
+            チャットをはじめる
+        </a>
+    </div>
+
+</body>
+</html>
