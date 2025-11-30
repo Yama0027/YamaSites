@@ -243,7 +243,14 @@ startCallButton.addEventListener('click', async () => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
                 try {
-                    await peerConnection.addIceCandidate(candidate);
+                    // 🚨 【重要】ここでチェックを追加 🚨
+                    // リモート記述 (相手からのOfferまたはAnswer) が設定されていることを確認する
+                    if (peerConnection.remoteDescription) { 
+                        await peerConnection.addIceCandidate(candidate);
+                    } else {
+                        console.warn("リモート記述設定前なのでCandidateの追加をスキップしました。");
+                        // 接続が確立された後に再試行するか、Answer/Offerの受信を待つ
+                    }
                 } catch (e) {
                     console.error('ICE Candidate追加失敗:', e);
                 }
