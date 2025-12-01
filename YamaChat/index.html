@@ -424,14 +424,23 @@
 // =========================================================
 // ⚠ 注意: ここは実行環境に応じて自動で置き換えられます。
 // Firebase設定とAppIDの取得
-const firebaseConfig = {
-  apiKey: "AIzaSyDjDgy_QanVzmgdUs9t86qfEsTeSTXJnaY",
-  authDomain: "nasuweb-467f9.firebaseapp.com",
-  projectId: "nasuweb-467f9",
-  storageBucket: "nasuweb-467f9.firebasestorage.app",
-  messagingSenderId: "23088520786",
-  appId: "1:23088520786:web:cef756e264b7f64214498b"
-};
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDjDgy_QanVzmgdUs9t86qfEsTeSTXJnaY",
+    authDomain: "nasuweb-467f9.firebaseapp.com",
+    projectId: "nasuweb-467f9",
+    storageBucket: "nasuweb-467f9.firebasestorage.app",
+    messagingSenderId: "23088520786",
+    appId: "1:23088520786:web:cef756e264b7f64214498b"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
 // ログレベル設定 (デバッグ用)
 firebase.firestore.setLogLevel('debug');
 
@@ -1084,4 +1093,5 @@ function endCall() {
     </script>
 </body>
 </html>
+
 
