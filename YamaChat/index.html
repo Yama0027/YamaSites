@@ -2,53 +2,118 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Chat & Call App</title>
+    <!-- スマホ対応: 拡大縮小を禁止してアプリっぽくする -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>LINE風チャット＆通話</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        #messages { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
-        #messages p { margin: 5px 0; border-bottom: 1px dotted #eee; }
-        #localVideo, #remoteVideo { width: 300px; height: 225px; border: 1px solid black; background: #333; margin: 10px; }
-        #call-area { margin-top: 20px; padding: 10px; border: 1px dashed #007bff; }
+        /* --- LINE風デザインのベース --- */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #7296cc; /* LINEっぽい背景色 */ height: 100vh; display: flex; flex-direction: column; }
+        
+        /* 認証画面 */
+        #auth-status { background: white; padding: 20px; border-radius: 10px; margin: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
+        #auth-status input { display: block; width: 80%; padding: 10px; margin: 10px auto; font-size: 16px; }
+        #auth-status button { width: 85%; padding: 10px; margin: 5px; font-size: 16px; background-color: #00c300; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        
+        /* メイン画面（タブ切り替えなど） */
+        .app-container { display: none; flex: 1; flex-direction: column; height: 100%; }
+        
+        /* ユーザーリスト（通話相手選択） */
+        #user-list { background: white; padding: 10px; max-height: 150px; overflow-y: auto; border-bottom: 1px solid #ddd; }
+        .user-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .user-item button { background-color: #00c300; color: white; border: none; padding: 5px 15px; border-radius: 15px; cursor: pointer; }
+        
+        /* チャットエリア */
+        #chat-area { flex: 1; overflow-y: scroll; padding: 15px; background-color: #7296cc; }
+        .message { margin-bottom: 10px; max-width: 80%; padding: 8px 12px; border-radius: 15px; font-size: 15px; position: relative; word-wrap: break-word; }
+        
+        /* 自分のメッセージ (緑・右寄せ) */
+        .my-message { background-color: #8de055; margin-left: auto; color: black; border-top-right-radius: 0; }
+        /* 相手のメッセージ (白・左寄せ) */
+        .other-message { background-color: white; margin-right: auto; color: black; border-top-left-radius: 0; }
+        .sender-name { font-size: 10px; color: #333; margin-bottom: 2px; display: block; }
+        
+        /* 入力エリア */
+        #input-area { background: white; padding: 10px; display: flex; align-items: center; }
+        #messageInput { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px; font-size: 16px; outline: none; }
+        #sendMessageButton { margin-left: 10px; background-color: #00c300; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; transform: rotate(-30deg); }
+
+        /* 通話オーバーレイ (全画面表示) */
+        #call-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #222; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+        #remoteVideo { width: 100%; height: 100%; object-fit: cover; position: absolute; }
+        #localVideo { width: 100px; height: 150px; object-fit: cover; position: absolute; top: 20px; right: 20px; border: 2px solid white; border-radius: 10px; z-index: 1001; background: #000; }
+        
+        /* 通話コントロールボタン */
+        .call-controls { position: absolute; bottom: 30px; z-index: 1002; display: flex; gap: 20px; }
+        .control-btn { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; font-size: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+        #hangupButton { background-color: #ff3b30; color: white; }
+        #switchCameraButton { background-color: white; color: #333; }
+        
+        /* 着信通知モーダル */
+        #incoming-call-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.5); z-index: 2000; width: 80%; }
+        #incoming-call-modal button { margin: 10px; padding: 10px 20px; border-radius: 20px; border: none; font-size: 16px; cursor: pointer; }
+        #answerButton { background-color: #00c300; color: white; }
+        #rejectButton { background-color: #ff3b30; color: white; }
+
     </style>
 </head>
 <body>
-    <h1>リアルタイムチャット＆ウェブ電話</h1>
     
+    <!-- 1. 認証画面 -->
     <div id="auth-status">
+        <h2>LINE風アプリ</h2>
         <input type="email" id="emailInput" placeholder="メールアドレス">
         <input type="password" id="passwordInput" placeholder="パスワード">
-        <button id="signUpButton">新規登録</button>
         <button id="signInButton">ログイン</button> 
-        
-        <button id="signOutButton" style="display:none;">ログアウト</button>
-        <p id="user-info"></p>
-    </div>
-    
-    <hr>
-
-    <div id="chat-area" style="display:none;">
-        <h2>💬 チャットルーム</h2>
-        <div id="messages">
-            </div>
-        <input type="text" id="messageInput" placeholder="メッセージを入力" style="width: 80%;">
-        <button id="sendMessageButton">送信</button>
+        <button id="signUpButton" style="background-color: #666;">新規登録</button>
     </div>
 
-    <hr>
+    <!-- 2. メイン画面 (ログイン後表示) -->
+    <div id="app-container" class="app-container">
+        <!-- ユーザーリスト (通話発信) -->
+        <div id="user-list">
+            <p style="margin:0 0 5px 0; font-size:12px; color:#666;">オンラインのユーザー (通話したい人を選んでね)</p>
+            <div id="users-container"></div>
+        </div>
 
-    <div id="call-area" style="display:none;">
-        <h2>📞 ウェブ電話 (WebRTC)</h2>
-        <div>
-            <h3>自分の映像</h3>
-            <video id="localVideo" autoplay muted></video>
-            <h3>相手の映像</h3>
-            <video id="remoteVideo" autoplay></video>
+        <!-- チャットエリア -->
+        <div id="chat-area">
+            <!-- メッセージがここに追加される -->
+        </div>
+
+        <!-- 入力エリア -->
+        <div id="input-area">
+            <input type="text" id="messageInput" placeholder="メッセージを入力">
+            <button id="sendMessageButton">➤</button>
         </div>
         
-        <button id="startCallButton">通話を開始</button>
-        <p id="call-status">ステータス: 待機中</p>
+        <div style="text-align:center; background:white; padding:5px;">
+             <small id="user-info"></small> | <a href="#" id="signOutButton">ログアウト</a>
+        </div>
     </div>
 
+    <!-- 3. 通話画面 (オーバーレイ) -->
+    <div id="call-overlay">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay muted playsinline></video>
+        
+        <div class="call-controls">
+            <!-- カメラ切り替えボタン (スマホ用) -->
+            <button id="switchCameraButton" class="control-btn">📷</button>
+            <!-- 通話終了ボタン -->
+            <button id="hangupButton" class="control-btn">📞</button>
+        </div>
+        <p id="call-status" style="position:absolute; top:50%; color:white; background:rgba(0,0,0,0.5); padding:10px; border-radius:5px;">接続中...</p>
+    </div>
+
+    <!-- 4. 着信通知モーダル -->
+    <div id="incoming-call-modal">
+        <h3>📞 着信</h3>
+        <p id="caller-name">誰かから電話です...</p>
+        <button id="answerButton">応答</button>
+        <button id="rejectButton">拒否</button>
+    </div>
+
+    <!-- Firebase SDK (v9 compat) -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
