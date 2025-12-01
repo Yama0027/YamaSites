@@ -25,7 +25,7 @@ let currentFacingMode = 'user';
 const configuration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
+        { urls: 'turn:turn.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
     ]
 };
 
@@ -98,7 +98,7 @@ window.onload = function() {
 
 function startAuthListener() {
     auth.onAuthStateChanged(async (user) => {
-        // 【修正】認証状態が確定した時点でローディングを非表示にする
+        // 認証状態が確定した時点でローディングを非表示にする
         loadingSpinner.style.display = 'none';
 
         if (user) {
@@ -168,6 +168,16 @@ function sendMessage() {
     }
 }
 
+// 【追加】タイムスタンプを "hh:mm" 形式に整形するヘルパー関数
+function formatTimestamp(timestamp) {
+    if (!timestamp) return '';
+    // FirestoreのTimestampオブジェクトか、Dateオブジェクトかを確認
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
 // チャット受信 (LINE風表示)
 function startChatListener() {
     const chatArea = document.getElementById('chat-area');
@@ -176,21 +186,45 @@ function startChatListener() {
         snapshot.forEach(doc => {
             const data = doc.data();
             const isMe = data.uid === currentUser.uid;
+            const userName = data.email ? data.email.split('@')[0] : 'ゲスト';
+            const timeString = formatTimestamp(data.timestamp); // 日時を整形
             
+            // 全体をラップする row div
+            const rowDiv = document.createElement('div');
+            rowDiv.className = `message-row ${isMe ? 'my-message-row' : 'other-message-row'}`;
+            
+            // タイムスタンプ
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'timestamp';
+            timeSpan.textContent = timeString;
+
+            // メッセージ本体
             const msgDiv = document.createElement('div');
-            msgDiv.className = `message ${isMe ? 'my-message' : 'other-message'}`;
+            msgDiv.className = 'message';
             
-            // 相手の名前を表示
+            // ユーザー名 (相手のメッセージでのみ表示)
             if (!isMe) {
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'sender-name';
-                nameSpan.textContent = data.email.split('@')[0];
+                nameSpan.textContent = userName;
                 msgDiv.appendChild(nameSpan);
             }
             
             const textNode = document.createTextNode(data.text);
             msgDiv.appendChild(textNode);
-            chatArea.appendChild(msgDiv);
+            
+            // 要素の追加順序を決定
+            if (isMe) {
+                // 自分: [日時] [メッセージ]
+                rowDiv.appendChild(timeSpan);
+                rowDiv.appendChild(msgDiv);
+            } else {
+                // 相手: [メッセージ] [日時] (メッセージの中にユーザー名を含む)
+                rowDiv.appendChild(msgDiv);
+                rowDiv.appendChild(timeSpan);
+            }
+
+            chatArea.appendChild(rowDiv);
         });
         chatArea.scrollTop = chatArea.scrollHeight;
     });
@@ -351,7 +385,7 @@ function setupPeerConnection() {
         snapshot.docChanges().forEach(async change => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
-                // 【修正】リモート設定前かどうかチェック
+                // リモート設定前かどうかチェック
                 if (peerConnection && peerConnection.remoteDescription) {
                     try { await peerConnection.addIceCandidate(candidate); }
                     catch (e) { console.error("Candidate追加エラー:", e); }
