@@ -2,100 +2,328 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>LINE風チャット＆通話</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LINE風 ビデオ通話＆チャット</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <style>
-        /* --- LINE風デザインのベース --- */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #7296cc; height: 100vh; display: flex; flex-direction: column; }
-        
-        /* 認証画面とアプリコンテナを初期状態で非表示に */
-        #auth-status, #app-container { display: none; }
-        
-        /* 認証画面 */
-        #auth-status { background: white; padding: 20px; border-radius: 10px; margin: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); text-align: center; }
-        #auth-status input { display: block; width: 80%; padding: 10px; margin: 10px auto; font-size: 16px; }
-        #auth-status button { width: 85%; padding: 10px; margin: 5px; font-size: 16px; background-color: #00c300; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        
-        /* メイン画面（タブ切り替えなど） */
-        .app-container { flex: 1; flex-direction: column; height: 100%; }
-        
-        /* ユーザーリスト（通話相手選択） */
-        #user-list { background: white; padding: 10px; max-height: 250px; overflow-y: auto; border-bottom: 1px solid #ddd; }
-        
-        /* 【新規】フレンド追加エリア */
-        #add-friend-area { display: flex; gap: 5px; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
-        #friendEmailInput { flex: 1; padding: 5px 10px; border: 1px solid #ddd; border-radius: 5px; }
-        #addFriendButton { background-color: #00a8ff; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; }
-
-        .user-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .user-item button { background-color: #00c300; color: white; border: none; padding: 5px 15px; border-radius: 15px; cursor: pointer; }
-        .user-item .online-dot { width: 8px; height: 8px; background-color: gray; border-radius: 50%; margin-right: 8px; }
-        .user-item.online .online-dot { background-color: #00c300; }
-        .user-info-status { display: flex; align-items: center; }
-
-        /* チャットエリア */
-        #chat-area { flex: 1; overflow-y: scroll; padding: 15px; background-color: #7296cc; }
-
-        /* メッセージコンテナ（日時とメッセージ本体をフレックスで配置するためのラッパー） */
-        .message-row { display: flex; margin-bottom: 10px; align-items: flex-end; }
-        .message-row.my-message-row { justify-content: flex-end; }
-        .message-row.other-message-row { justify-content: flex-start; }
-
-        .message { max-width: 80%; padding: 8px 12px; border-radius: 15px; font-size: 15px; position: relative; word-wrap: break-word; }
-        
-        /* 自分のメッセージ (緑・右寄せ) */
-        .my-message-row .message { background-color: #8de055; color: black; border-top-right-radius: 0; }
-        /* 相手のメッセージ (白・左寄せ) */
-        .other-message-row .message { background-color: white; color: black; border-top-left-radius: 0; }
-
-        /* 送信者名 (相手メッセージの上に表示) */
-        .sender-name { font-size: 12px; color: #333; margin-bottom: 2px; display: block; text-align: left; }
-
-        /* 日時表示スタイル */
-        .timestamp { 
-            font-size: 10px; 
-            color: #444; 
-            margin: 0 5px; /* メッセージとの間隔 */
-            white-space: nowrap; /* 折り返さない */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
         }
-        .message-row.my-message-row .timestamp { order: -1; } /* 自分のメッセージでは日時を左に */
-        
-        /* 入力エリア */
-        #input-area { background: white; padding: 10px; display: flex; align-items: center; }
-        #messageInput { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px; font-size: 16px; outline: none; }
-        #sendMessageButton { margin-left: 10px; background-color: #00c300; color: white; border: none; padding: 10px 20px; border-radius: 20px; cursor: pointer; transform: rotate(-30deg); }
+        .main-container {
+            display: flex;
+            width: 100%;
+            max-width: 1200px;
+            height: 85vh;
+            max-height: 900px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
 
-        /* 通話オーバーレイ (全画面表示) */
-        #call-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #222; z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
-        #remoteVideo { width: 100%; height: 100%; object-fit: cover; position: absolute; }
-        #localVideo { width: 100px; height: 150px; object-fit: cover; position: absolute; top: 20px; right: 20px; border: 2px solid white; border-radius: 10px; z-index: 1001; background: #000; }
-        
-        /* 通話コントロールボタン */
-        .call-controls { position: absolute; bottom: 30px; z-index: 1002; display: flex; gap: 20px; }
-        .control-btn { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: pointer; font-size: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
-        #hangupButton { background-color: #ff3b30; color: white; }
-        #switchCameraButton { background-color: white; color: #333; }
-        
-        /* 着信通知モーダル */
-        #incoming-call-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 10px; text-align: center; box-shadow: 0 5px 20px rgba(0,0,0,0.5); z-index: 2000; width: 80%; }
-        #incoming-call-modal button { margin: 10px; padding: 10px 20px; border-radius: 20px; border: none; font-size: 16px; cursor: pointer; }
-        #answerButton { background-color: #00c300; color: white; }
-        #rejectButton { background-color: #ff3b30; color: white; }
+        /* 左パネル (ユーザーリスト) */
+        .left-panel {
+            width: 300px;
+            min-width: 250px;
+            border-right: 1px solid #eee;
+            background-color: #f0f0f0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        .header-section {
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+        .user-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 5px;
+            margin-bottom: 8px;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+        }
+        .user-item:hover {
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        .user-info-status {
+            display: flex;
+            align-items: center;
+        }
+        .online-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .user-item.online .online-dot {
+            background-color: #34c759; /* Green */
+        }
+        .user-item.offline .online-dot {
+            background-color: #ccc; /* Gray */
+        }
+        .user-item button {
+            background-color: #007aff; /* Blue */
+            color: white;
+            padding: 5px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+        .user-item button:hover {
+            background-color: #0056b3;
+        }
+        .users-list {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
 
-        /* ロードスピナーのスタイル */
-        #loading-spinner {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #7296cc; display: flex; justify-content: center; align-items: center;
-            font-size: 24px; color: white; z-index: 9999;
+        /* 右パネル (チャット/ビデオ) */
+        .right-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .chat-area {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f8ff; /* Light Blue Chat Background */
+        }
+        .input-area {
+            display: flex;
+            padding: 10px 20px;
+            border-top: 1px solid #eee;
+            background-color: white;
+        }
+        .input-area input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            margin-right: 10px;
+            outline: none;
+        }
+        .input-area button {
+            background-color: #007aff;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            transition: background-color 0.2s;
+        }
+        .input-area button:hover {
+            background-color: #0056b3;
+        }
+
+        /* チャットメッセージのスタイル (LINE風) */
+        .message-row {
+            display: flex;
+            margin-bottom: 10px;
+        }
+        .other-message-row {
+            justify-content: flex-start;
+        }
+        .my-message-row {
+            justify-content: flex-end;
+        }
+        .message {
+            max-width: 60%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            line-height: 1.4;
+            position: relative;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+            font-size: 14px;
+        }
+        .other-message-row .message {
+            background-color: white;
+            border-bottom-left-radius: 2px;
+            margin-right: 8px;
+        }
+        .my-message-row .message {
+            background-color: #8dff8d; /* Light Green */
+            border-bottom-right-radius: 2px;
+            margin-left: 8px;
+        }
+        .timestamp {
+            font-size: 10px;
+            color: #999;
+            align-self: flex-end;
+            margin: 0 5px;
+        }
+        .sender-name {
+            display: block;
+            font-size: 10px;
+            color: #555;
+            margin-bottom: 3px;
+            font-weight: 600;
+        }
+
+        /* ビデオオーバーレイ */
+        #call-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+            display: none; /* 初期状態では非表示 */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        #localVideo {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 120px;
+            height: 160px;
+            border-radius: 10px;
+            border: 3px solid white;
+            object-fit: cover;
+            z-index: 101;
+        }
+        .call-controls {
+            position: absolute;
+            bottom: 30px;
+            display: flex;
+            gap: 20px;
+            z-index: 102;
+        }
+        .call-controls button {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 24px;
+            transition: opacity 0.2s;
+        }
+        .call-controls button:hover {
+            opacity: 0.8;
+        }
+        #hangupButton {
+            background-color: #ff3b30; /* Red */
+        }
+        #switchCameraButton {
+            background-color: #5856d6; /* Purple */
+        }
+        #call-status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 1.2rem;
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            z-index: 103;
+        }
+
+        /* 着信モーダル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 200;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .modal-buttons button {
+            margin: 10px;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+        }
+        #answerButton {
+            background-color: #34c759;
+        }
+        #rejectButton {
+            background-color: #ff3b30;
+        }
+
+        /* ローディング・認証画面 */
+        .loading-spinner, #auth-status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 30px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        #auth-status input {
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            width: 250px;
+            display: block;
+        }
+        #auth-status button {
+            background-color: #007aff;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            width: 100%;
+            font-weight: bold;
+        }
+        .loading-spinner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
         }
         .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
             border-radius: 50%;
-            border-top: 4px solid white;
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             animation: spin 1s linear infinite;
-            margin-left: 10px;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -104,88 +332,754 @@
     </style>
 </head>
 <body>
-    
-    <!-- 着信音用のオーディオ要素 (ミュートにしておき、JSで再生) -->
-    <!-- MP3ファイルを直接読み込めないため、ここでは仮のソースURLを使用します。 -->
-    <!-- 実際のアプリでは、ご自身のサーバーに音源ファイルを配置してください。 -->
-    <audio id="incomingCallSound" loop preload="auto">
-        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mp3">
-        <!-- 鳴らない場合は、ご自身の環境で動作する別のURLに差し替えてください -->
-        音源がロードできません。
-    </audio>
 
-    <!-- ロードスピナー -->
-    <div id="loading-spinner">
-        認証状態を確認中... <div class="spinner"></div>
+    <!-- ローディングスピナー (初期表示) -->
+    <div id="loading-spinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>認証を待機しています...</p>
     </div>
 
-    <!-- 1. 認証画面 -->
-    <div id="auth-status">
-        <h2>LINE風アプリ</h2>
-        <input type="email" id="emailInput" placeholder="メールアドレス">
-        <input type="password" id="passwordInput" placeholder="パスワード">
-        <button id="signInButton">ログイン</button> 
-        <button id="signUpButton" style="background-color: #666;">新規登録</button>
+    <!-- 認証画面 (未ログイン時) -->
+    <div id="auth-status" style="display:none;">
+        <h2 class="text-xl font-bold mb-4">サインイン / サインアップ</h2>
+        <input type="email" id="emailInput" placeholder="メールアドレス" value="test@example.com">
+        <input type="password" id="passwordInput" placeholder="パスワード" value="password123">
+        <button id="signInButton">サインイン</button>
+        <button id="signUpButton" style="background-color: #34c759;">サインアップ</button>
+        <p class="text-xs mt-3 text-gray-500">※テスト用の簡易認証です。</p>
     </div>
 
-    <!-- 2. メイン画面 (ログイン後表示) -->
-    <div id="app-container" class="app-container">
-        <!-- ユーザーリスト (通話発信) -->
-        <div id="user-list">
-            <p style="margin:0 0 5px 0; font-size:12px; color:#666; font-weight:bold;">フレンド (オンラインのみ表示)</p>
+    <!-- メインアプリケーションコンテナ (ログイン後) -->
+    <div id="app-container" class="main-container" style="display:none;">
+        
+        <!-- 左サイドパネル (フレンド/ユーザーリスト) -->
+        <div class="left-panel">
+            <div class="header-section">
+                <p id="user-info" class="font-bold text-lg mb-1"></p>
+                <button id="signOutButton" class="text-sm text-red-500 hover:text-red-700 transition">ログアウト</button>
+
+                <div class="mt-4 flex gap-2">
+                    <input type="email" id="friendEmailInput" placeholder="フレンドのメールアドレス" class="p-2 border rounded-lg flex-grow text-sm">
+                    <button id="addFriendButton" class="text-sm px-3 py-1 bg-green-500 hover:bg-green-600 rounded-lg">追加</button>
+                </div>
+                <h3 class="font-semibold text-gray-700 mt-4">フレンドリスト</h3>
+            </div>
             
-            <!-- 【新規】フレンド追加エリア -->
-            <div id="add-friend-area">
-                <input type="email" id="friendEmailInput" placeholder="フレンドのメールアドレス">
-                <button id="addFriendButton">追加</button>
+            <div id="users-container" class="users-list">
+                <!-- ユーザーリストがここに動的に挿入されます -->
+                <p style="text-align:center; color:#999; margin-top:20px;">フレンドとオンライン状態を表示...</p>
+            </div>
+        </div>
+
+        <!-- 右メインパネル (チャットとビデオ) -->
+        <div class="right-panel">
+            
+            <!-- チャットエリア -->
+            <div id="chat-area" class="chat-area">
+                <!-- メッセージがここに挿入されます -->
             </div>
 
-            <div id="users-container"></div>
-        </div>
+            <!-- 入力エリア -->
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="メッセージを入力...">
+                <button id="sendMessageButton">送信</button>
+            </div>
+            
+            <!-- ビデオ通話オーバーレイ -->
+            <div id="call-overlay">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <video id="localVideo" autoplay playsinline muted></video>
+                <p id="call-status">接続待機中...</p>
+                
+                <div class="call-controls">
+                    <button id="hangupButton">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-phone-off"><path d="M10.63 2.1c.78.78 1.48 1.6 2.05 2.5l-3.37 3.37c-.38-.2-.8-.32-1.24-.37-.77-.09-1.52.16-2.07.71l-1.55 1.55c-1.26 1.26-1.53 3.36-.71 4.75.54.9 1.3 1.76 2.21 2.67l3.29 3.29c.9.9 1.76 1.67 2.67 2.21 1.4.82 3.5.55 4.75-.71l1.55-1.55c.55-.55.8-1.3.71-2.07-.05-.44-.17-.86-.37-1.24l3.37-3.37c.89-.57 1.72-1.27 2.5-2.05L22 13.7V7c0-1.1-.9-2-2-2h-6.7l-2.67 2.67Z"/></svg>
+                    </button>
+                    <button id="switchCameraButton">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-camera-off"><line x1="2" x2="22" y1="2" y2="22"/><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2l1.6-2.4"/><path d="M10 7H21a2 2 0 0 1 2 2v8"/><path d="M15 13a3 3 0 1 0-2-2"/></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 着信モーダル -->
+            <div id="incoming-call-modal" class="modal">
+                <div class="modal-content">
+                    <p id="caller-name" class="text-xl font-bold mb-5">Xxxさんから電話です</p>
+                    <div class="modal-buttons">
+                        <button id="answerButton">応答</button>
+                        <button id="rejectButton">拒否</button>
+                    </div>
+                </div>
+            </div>
 
-        <!-- チャットエリア -->
-        <div id="chat-area">
-            <!-- メッセージがここに追加される -->
-        </div>
-
-        <!-- 入力エリア -->
-        <div id="input-area">
-            <input type="text" id="messageInput" placeholder="メッセージを入力">
-            <button id="sendMessageButton">➤</button>
-        </div>
-        
-        <div style="text-align:center; background:white; padding:5px;">
-             <small id="user-info"></small> | <a href="#" id="signOutButton">ログアウト</a>
+            <!-- 着信音 (ループ再生のため) -->
+            <audio id="incomingCallSound" loop src="https://assets.mixkit.co/sfx/preview/mixkit-analog-phone-ring-2374.mp3" style="display:none;"></audio>
         </div>
     </div>
-
-    <!-- 3. 通話画面 (オーバーレイ) -->
-    <div id="call-overlay">
-        <video id="remoteVideo" autoplay playsinline></video>
-        <video id="localVideo" autoplay muted playsinline></video>
-        
-        <div class="call-controls">
-            <!-- カメラ切り替えボタン (スマホ用) -->
-            <button id="switchCameraButton" class="control-btn">📷</button>
-            <!-- 通話終了ボタン -->
-            <button id="hangupButton" class="control-btn">📞</button>
-        </div>
-        <p id="call-status" style="position:absolute; top:50%; color:white; background:rgba(0,0,0,0.5); padding:10px; border-radius:5px;">接続中...</p>
-    </div>
-
-    <!-- 4. 着信通知モーダル -->
-    <div id="incoming-call-modal">
-        <h3>📞 着信</h3>
-        <p id="caller-name">誰かから電話です...</p>
-        <button id="answerButton">応答</button>
-        <button id="rejectButton">拒否</button>
-    </div>
-
-    <!-- Firebase SDK (v9 compat) -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     
-    <script src="app.js"></script>
+
+    <script type="module">
+// =========================================================
+// 1. 初期設定 (グローバル変数)
+// =========================================================
+// ⚠ 注意: ここは実行環境に応じて自動で置き換えられます。
+// Firebase設定とAppIDの取得
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+const app = firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ログレベル設定 (デバッグ用)
+firebase.firestore.setLogLevel('debug');
+
+
+let currentUser = null;
+let currentCallId = null; 
+let localStream = null;
+let peerConnection = null;
+let currentFacingMode = 'user'; 
+let notificationPermissionGranted = false; 
+
+// TURNサーバー設定 (WebRTC接続用)
+const configuration = {
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        // WebRTCの接続を安定させるためのTURNサーバー（リレーサーバー）
+        { urls: 'turn:turn.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
+    ]
+};
+
+// =========================================================
+// 2. DOM要素とイベントリスナーの初期化 (HTML読み込み後実行)
+// =========================================================
+let authStatusDiv, appContainer, loadingSpinner, usersContainer, 
+    signInButton, signUpButton, signOutButton, 
+    sendMessageButton, switchCameraButton, hangupButton, 
+    answerButton, rejectButton, addFriendButton, friendEmailInput, incomingCallSound,
+    localVideo, remoteVideo, callOverlay, callStatus, incomingModal; 
+
+window.onload = function() {
+    // DOM要素の取得
+    authStatusDiv = document.getElementById('auth-status');
+    appContainer = document.getElementById('app-container');
+    loadingSpinner = document.getElementById('loading-spinner');
+    usersContainer = document.getElementById('users-container');
+
+    signInButton = document.getElementById('signInButton');
+    signUpButton = document.getElementById('signUpButton');
+    signOutButton = document.getElementById('signOutButton');
+    sendMessageButton = document.getElementById('sendMessageButton');
+    switchCameraButton = document.getElementById('switchCameraButton');
+    hangupButton = document.getElementById('hangupButton');
+    answerButton = document.getElementById('answerButton');
+    rejectButton = document.getElementById('rejectButton');
+    addFriendButton = document.getElementById('addFriendButton'); 
+    friendEmailInput = document.getElementById('friendEmailInput'); 
+    incomingCallSound = document.getElementById('incomingCallSound'); 
+    
+    localVideo = document.getElementById('localVideo');
+    remoteVideo = document.getElementById('remoteVideo');
+    callOverlay = document.getElementById('call-overlay');
+    callStatus = document.getElementById('call-status');
+    incomingModal = document.getElementById('incoming-call-modal');
+
+
+    // UIイベントリスナーの設定
+    signInButton.addEventListener('click', () => {
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        auth.signInWithEmailAndPassword(email, password).catch(e => console.error("サインインエラー:", e.message));
+    });
+
+    signUpButton.addEventListener('click', () => {
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        auth.createUserWithEmailAndPassword(email, password).catch(e => console.error("サインアップエラー:", e.message));
+    });
+
+    signOutButton.addEventListener('click', () => {
+        if (currentUser) {
+            // ログアウト時にusersコレクションから自分のレコードを削除
+            // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
+            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(currentUser.uid).delete().catch(console.error);
+        }
+        auth.signOut();
+    });
+
+    sendMessageButton.addEventListener('click', sendMessage);
+    switchCameraButton.addEventListener('click', switchCamera); 
+    hangupButton.addEventListener('click', endCall); 
+    answerButton.addEventListener('click', answerCall); 
+    rejectButton.addEventListener('click', rejectCall); 
+    addFriendButton.addEventListener('click', addFriendByEmail); 
+
+    // Firebase認証状態の監視を開始
+    startAuthListener();
+}
+
+
+// =========================================================
+// 3. 認証 & ユーザー管理 & フレンド機能
+// =========================================================
+
+function startAuthListener() {
+    auth.onAuthStateChanged(async (user) => {
+        // 認証状態が確定した時点でローディングを非表示にする
+        loadingSpinner.style.display = 'none';
+
+        if (user) {
+            currentUser = user;
+            document.getElementById('user-info').textContent = user.email;
+            
+            // ログイン済みならメインアプリを表示
+            authStatusDiv.style.display = 'none';
+            appContainer.style.display = 'flex';
+
+            // 通知権限を要求 (新規追加)
+            await requestNotificationPermission(); 
+
+            // 自分の情報をusersコレクションに保存 (オンライン通知代わり)
+            // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
+            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid).set({
+                email: user.email,
+                uid: user.uid,
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            startChatListener();   
+            startUserListListener(); 
+            startIncomingCallListener(); 
+        } else {
+            currentUser = null;
+            // 未ログインなら認証画面を表示
+            authStatusDiv.style.display = 'block';
+            appContainer.style.display = 'none';
+        }
+    });
+}
+
+// ブラウザ通知権限を要求する関数 (新規追加)
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.warn("このブラウザは通知をサポートしていません。");
+        return;
+    }
+
+    if (Notification.permission === 'granted') {
+        notificationPermissionGranted = true;
+        return;
+    }
+
+    if (Notification.permission !== 'denied') {
+        try {
+            const permission = await Notification.requestPermission();
+            if (permission === 'granted') {
+                notificationPermissionGranted = true;
+                console.log("通知権限が許可されました。");
+            } else {
+                notificationPermissionGranted = false;
+                console.log("通知権限が拒否されました。");
+            }
+        } catch (error) {
+            console.error("通知権限の要求中にエラーが発生しました:", error);
+            notificationPermissionGranted = false;
+        }
+    }
+}
+
+// ブラウザ通知を表示する関数 (新規追加)
+function displayNotification(title, body) {
+    if (notificationPermissionGranted) {
+        // ページがアクティブな場合、通知は不要
+        if (document.visibilityState === 'visible' && callOverlay.style.display !== 'flex') {
+            return;
+        }
+
+        const notification = new Notification(title, {
+            body: body,
+            icon: 'https://placehold.co/64x64/00c300/ffffff?text=L', 
+            vibrate: [200, 100, 200]
+        });
+        
+        // 通知クリック時にウィンドウにフォーカス
+        notification.onclick = function() {
+            window.focus();
+            this.close();
+        };
+    }
+}
+
+// メールアドレスでフレンドを追加する (Firestoreパス修正済み)
+async function addFriendByEmail() {
+    const email = friendEmailInput.value.trim();
+    if (!email || email === currentUser.email) {
+        return;
+    }
+
+    try {
+        // 1. そのメールアドレスを持つユーザーを検索
+        // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
+        const usersRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users');
+        const usersSnapshot = await usersRef.where('email', '==', email).limit(1).get();
+
+        if (usersSnapshot.empty) {
+            // ユーザーが見つからない場合はメッセージを出す
+            console.log("ユーザーが見つかりませんでした。");
+            return;
+        }
+
+        const friendDoc = usersSnapshot.docs[0];
+        const friendUid = friendDoc.id;
+
+        // 2. 自分のフレンドリストに追加
+        // 🚨 【Firestore パス修正】friendsコレクションをパブリックデータパスに移動
+        const friendsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list');
+        await friendsRef.doc(friendUid).set({
+            uid: friendUid,
+            email: email,
+            addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        console.log(`${email} をフレンドに追加しました！`);
+        friendEmailInput.value = '';
+
+    } catch (e) {
+        console.error("フレンド追加エラー:", e);
+    }
+}
+
+// フレンドリストの監視と表示
+function startUserListListener() {
+    const onlineUsers = {}; 
+    let friends = {};       
+
+    // 1. オンラインユーザーの監視
+    // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
+    const usersRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users');
+    usersRef.onSnapshot(onlineSnapshot => {
+        // onlineUsersをリセット
+        Object.keys(onlineUsers).forEach(key => delete onlineUsers[key]); 
+        onlineSnapshot.forEach(doc => {
+            const userData = doc.data();
+            if (userData.uid !== currentUser.uid) {
+                onlineUsers[userData.uid] = userData;
+            }
+        });
+        renderFriendList(friends, onlineUsers);
+    });
+
+    // 2. 自分のフレンドリストの監視
+    // 🚨 【Firestore パス修正】friendsコレクションをパブリックデータパスに移動
+    const friendsListRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list');
+    friendsListRef.onSnapshot(friendSnapshot => {
+        // friendsをリセット
+        Object.keys(friends).forEach(key => delete friends[key]);
+        friendSnapshot.forEach(doc => {
+            const friendData = doc.data();
+            friends[friendData.uid] = friendData;
+        });
+        renderFriendList(friends, onlineUsers);
+    });
+}
+
+// フレンドリストのDOM描画
+function renderFriendList(friends, onlineUsers) {
+    usersContainer.innerHTML = '';
+    
+    const friendUids = Object.keys(friends);
+
+    if (friendUids.length === 0) {
+        usersContainer.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">まだフレンドがいません。「フレンドのメールアドレス」を入力して追加しましょう。</p>';
+        return;
+    }
+
+    friendUids.forEach(uid => {
+        const friendData = friends[uid];
+        const isOnline = !!onlineUsers[uid]; 
+        const displayData = isOnline ? onlineUsers[uid] : friendData;
+        
+        const div = document.createElement('div');
+        div.className = `user-item ${isOnline ? 'online' : 'offline'}`;
+        div.innerHTML = `
+            <div class="user-info-status">
+                <span class="online-dot"></span>
+                <span>${displayData.email.split('@')[0]} ${isOnline ? '(Online)' : '(Offline)'}</span>
+            </div>
+            ${isOnline 
+                ? `<button onclick="startCall('${displayData.uid}', '${displayData.email}')">📞 通話</button>`
+                : `<button onclick="removeFriend('${displayData.uid}', '${displayData.email}')" style="background-color: #ff3b30;">削除</button>`
+            }
+        `;
+        usersContainer.appendChild(div);
+    });
+}
+
+// フレンド削除
+window.removeFriend = async (friendUid, friendEmail) => {
+    // confirmの代わりにカスタムモーダルを使用してください
+    const confirmed = window.prompt(`${friendEmail.split('@')[0]} さんをフレンドリストから削除しますか？ (はい/いいえ)`);
+    if (confirmed && confirmed.toLowerCase() === 'はい') {
+        try {
+            // 🚨 【Firestore パス修正】friendsコレクションをパブリックデータパスに移動
+            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list').doc(friendUid).delete();
+            console.log(`${friendEmail} を削除しました。`);
+        } catch(e) {
+            console.error("フレンド削除エラー:", e);
+        }
+    }
+}
+
+
+// =========================================================
+// 4. チャット
+// =========================================================
+
+// チャット送信
+function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const text = input.value.trim();
+    if (text && currentUser) {
+        // 🚨 【Firestore パス修正】chatsコレクションをパブリックデータパスに移動
+        db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chats').add({
+            text: text,
+            uid: currentUser.uid,
+            email: currentUser.email,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        input.value = '';
+    }
+}
+
+// タイムスタンプを "hh:mm" 形式に整形するヘルパー関数
+function formatTimestamp(timestamp) {
+    if (!timestamp) return '';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
+// チャット受信 (LINE風表示)
+function startChatListener() {
+    const chatArea = document.getElementById('chat-area');
+    // 🚨 【Firestore パス修正】chatsコレクションをパブリックデータパスに移動
+    db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chats').orderBy('timestamp', 'asc').limit(50).onSnapshot(snapshot => {
+        let newMessages = [];
+
+        snapshot.docChanges().forEach(change => {
+            // 新しいメッセージが追加された場合
+            if (change.type === 'added') {
+                const data = change.doc.data();
+                // 自分のメッセージではなく、かつ、メッセージ本文がある場合、通知リストに追加
+                if (data.uid !== currentUser.uid && data.text) {
+                    newMessages.push(data);
+                }
+            }
+        });
+
+        // 差分で追加されたメッセージがあれば通知
+        if (newMessages.length > 0) {
+            newMessages.forEach(data => {
+                const senderName = data.email ? data.email.split('@')[0] : 'ゲスト';
+                displayNotification(senderName, data.text);
+            });
+        }
+
+
+        // UIの再描画
+        chatArea.innerHTML = '';
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            
+            if (!data.text || typeof data.text !== 'string') return; 
+
+            try { 
+                const isMe = data.uid === currentUser.uid;
+                const userName = data.email ? data.email.split('@')[0] : 'ゲスト';
+                const timeString = formatTimestamp(data.timestamp); 
+                
+                const rowDiv = document.createElement('div');
+                rowDiv.className = `message-row ${isMe ? 'my-message-row' : 'other-message-row'}`;
+                
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'timestamp';
+                timeSpan.textContent = timeString;
+
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message';
+                
+                if (!isMe) {
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'sender-name';
+                    nameSpan.textContent = userName;
+                    msgDiv.appendChild(nameSpan);
+                }
+                
+                const textNode = document.createTextNode(data.text);
+                msgDiv.appendChild(textNode);
+                
+                // 自分のメッセージは時間表示を左に、相手のメッセージは時間表示を右に
+                if (isMe) {
+                    rowDiv.appendChild(timeSpan);
+                    rowDiv.appendChild(msgDiv);
+                } else {
+                    rowDiv.appendChild(msgDiv);
+                    rowDiv.appendChild(timeSpan);
+                }
+
+                chatArea.appendChild(rowDiv);
+            } catch (e) {
+                console.error("チャットメッセージの表示中にエラーが発生しました:", e, data);
+            }
+        });
+        chatArea.scrollTop = chatArea.scrollHeight;
+    });
+}
+
+
+// =========================================================
+// 5. 1対1 WebRTC 通話機能
+// =========================================================
+
+// カメラ取得関数 (facingMode対応)
+async function getLocalStream() {
+    try {
+        const constraints = {
+            audio: true,
+            video: { facingMode: currentFacingMode }
+        };
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        localVideo.srcObject = localStream;
+        return true;
+    } catch (e) {
+        console.error("カメラ取得エラー", e);
+        return false;
+    }
+}
+
+// 通話開始 (発信)
+window.startCall = async (targetUid, targetEmail) => {
+    if (!await getLocalStream()) return;
+    
+    // 1対1用の通話IDを作成 (辞書順で並べ替え)
+    const uids = [currentUser.uid, targetUid].sort();
+    currentCallId = `${uids[0]}_${uids[1]}`;
+    
+    // UI表示
+    callOverlay.style.display = 'flex';
+    callStatus.textContent = `${targetEmail.split('@')[0]} さんに発信中...`;
+    
+    setupPeerConnection();
+    
+    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
+    const callDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+    
+    // 過去のゴミデータを掃除
+    const candidates = await callDoc.collection('candidates').get();
+    candidates.forEach(doc => doc.ref.delete());
+    
+    // Offer作成
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    
+    // 発信情報を書き込み 
+    await callDoc.set({
+        offer: { type: offer.type, sdp: offer.sdp },
+        callerUid: currentUser.uid,
+        calleeUid: targetUid, 
+        answer: null
+    });
+
+    // Answer待ち受け
+    const unsubscribe = callDoc.onSnapshot(async (snapshot) => {
+        const data = snapshot.data();
+        if (data && data.answer && !peerConnection.currentRemoteDescription) {
+            const answerDesc = new RTCSessionDescription(data.answer);
+            await peerConnection.setRemoteDescription(answerDesc);
+            callStatus.textContent = '接続しました';
+            unsubscribe();
+        }
+    });
+};
+
+// 着信監視 (自分宛ての電話だけを拾う)
+function startIncomingCallListener() {
+    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
+    db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+            if (change.type === 'added' || change.type === 'modified') {
+                const data = change.doc.data();
+                
+                if (data.calleeUid === currentUser.uid && data.offer && !data.answer) {
+                    if (callOverlay.style.display !== 'flex') {
+                        // 着信音と通知
+                        try { incomingCallSound.play(); } catch(e) { console.warn("着信音再生エラー:", e); }
+                        
+                        // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
+                        db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(data.callerUid).get().then(doc => {
+                            const callerEmail = doc.data()?.email || '不明なユーザー';
+                            const callerName = callerEmail.split('@')[0];
+                            
+                            // ブラウザ通知を表示 (新規追加)
+                            displayNotification(`📞 着信 (${callerName}さん)`, `${callerName}さんから通話がかかってきました。`);
+                            
+                            showIncomingCallModal(change.doc.id, callerName);
+                        });
+                    }
+                }
+            }
+        });
+    });
+}
+
+// 着信モーダル表示
+let incomingCallId = null;
+function showIncomingCallModal(callId, callerName) {
+    incomingCallId = callId;
+    document.getElementById('caller-name').textContent = `${callerName} さんから電話です`;
+    incomingModal.style.display = 'flex'; // display: block から flex に変更
+}
+
+// 応答ボタン処理
+async function answerCall() {
+    incomingModal.style.display = 'none';
+    incomingCallSound.pause(); 
+    incomingCallSound.currentTime = 0;
+    
+    currentCallId = incomingCallId;
+    
+    if (!await getLocalStream()) return;
+    
+    callOverlay.style.display = 'flex';
+    callStatus.textContent = '接続中...';
+    
+    setupPeerConnection();
+    
+    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
+    const callDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+    const doc = await callDoc.get();
+    const data = doc.data();
+    
+    // Offer設定
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+    
+    // Answer作成
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    
+    await callDoc.update({
+        answer: { type: answer.type, sdp: answer.sdp }
+    });
+}
+
+// 拒否ボタン処理
+function rejectCall() {
+    incomingModal.style.display = 'none';
+    incomingCallSound.pause(); 
+    incomingCallSound.currentTime = 0;
+
+    if (incomingCallId) {
+         // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
+         db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(incomingCallId).delete().catch(console.error);
+    }
+}
+
+
+// PeerConnection共通セットアップ
+function setupPeerConnection() {
+    if (peerConnection) peerConnection.close();
+    peerConnection = new RTCPeerConnection(configuration);
+    
+    if (localStream) {
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    }
+    
+    peerConnection.ontrack = event => {
+        remoteVideo.srcObject = event.streams[0];
+    };
+    
+    // ICE Candidate処理
+    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
+    const callDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+    
+    peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+            callDoc.collection('candidates').add(event.candidate.toJSON());
+        }
+    };
+    
+    // ICE Candidateの受信
+    callDoc.collection('candidates').onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(async change => {
+            if (change.type === 'added') {
+                const candidate = new RTCIceCandidate(change.doc.data());
+                // リモート設定後のみCandidateを追加
+                if (peerConnection && peerConnection.remoteDescription) {
+                    try { await peerConnection.addIceCandidate(candidate); }
+                    catch (e) { console.error("Candidate追加エラー:", e); }
+                } else {
+                     console.log("リモート記述設定前なのでCandidateの追加をスキップしました。");
+                }
+            }
+        });
+    });
+    
+    // 切断監視
+    peerConnection.onconnectionstatechange = () => {
+        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+            endCall();
+        }
+    };
+}
+
+
+// =========================================================
+// 6. カメラ切り替え & 通話終了
+// =========================================================
+
+// カメラ切り替え (スマホ用)
+async function switchCamera() {
+    currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+    
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    
+    await getLocalStream();
+    
+    // PeerConnectionの映像トラックを差し替える
+    if (peerConnection && localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) {
+            sender.replaceTrack(videoTrack);
+        }
+    }
+}
+
+// 通話終了
+function endCall() {
+    if (peerConnection) peerConnection.close();
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    callOverlay.style.display = 'none';
+    localStream = null;
+    peerConnection = null;
+    currentCallId = null;
+    
+    incomingCallSound.pause(); 
+    incomingCallSound.currentTime = 0;
+
+    // UIをリセットしてユーザーリストを再読み込み
+    document.getElementById('users-container').innerHTML = '';
+    if (currentUser) {
+        startUserListListener();
+    }
+}
+
+    </script>
 </body>
 </html>
