@@ -506,42 +506,39 @@ let authStatusDiv, appContainer, loadingSpinner, usersContainer,
     answerButton, rejectButton, addFriendButton, friendEmailInput, incomingCallSound,
     localVideo, remoteVideo, callOverlay, callStatus, incomingModal; 
 
+<script>
 window.onload = function() {
-    // ===============================
     // DOM要素の取得
-    // ===============================
-    authStatusDiv       = document.getElementById('auth-status');
-    appContainer        = document.getElementById('app-container');
-    loadingSpinner      = document.getElementById('loading-spinner');
-    usersContainer      = document.getElementById('users-container');
+    const authStatusDiv = document.getElementById('auth-status');
+    const appContainer = document.getElementById('app-container');
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const usersContainer = document.getElementById('users-container');
 
-    signInButton        = document.getElementById('signInButton');
-    signUpButton        = document.getElementById('signUpButton');
-    signOutButton       = document.getElementById('signOutButton');
-    sendMessageButton   = document.getElementById('sendMessageButton');
-    switchCameraButton  = document.getElementById('switchCameraButton');
-    hangupButton        = document.getElementById('hangupButton');
-    answerButton        = document.getElementById('answerButton');
-    rejectButton        = document.getElementById('rejectButton');
-    addFriendButton     = document.getElementById('addFriendButton'); 
-    friendEmailInput    = document.getElementById('friendEmailInput'); 
-    incomingCallSound   = document.getElementById('incomingCallSound'); 
+    const signInButton = document.getElementById('signInButton');
+    const signUpButton = document.getElementById('signUpButton');
+    const signOutButton = document.getElementById('signOutButton');
+    const sendMessageButton = document.getElementById('sendMessageButton');
+    const switchCameraButton = document.getElementById('switchCameraButton');
+    const hangupButton = document.getElementById('hangupButton');
+    const answerButton = document.getElementById('answerButton');
+    const rejectButton = document.getElementById('rejectButton');
+    const addFriendButton = document.getElementById('addFriendButton'); 
+    const friendEmailInput = document.getElementById('friendEmailInput'); 
+    const incomingCallSound = document.getElementById('incomingCallSound'); 
+    
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+    const callOverlay = document.getElementById('call-overlay');
+    const callStatus = document.getElementById('call-status');
+    const incomingModal = document.getElementById('incoming-call-modal');
 
-    localVideo          = document.getElementById('localVideo');
-    remoteVideo         = document.getElementById('remoteVideo');
-    callOverlay         = document.getElementById('call-overlay');
-    callStatus          = document.getElementById('call-status');
-    incomingModal       = document.getElementById('incoming-call-modal');
-
-    // ===============================
-    // イベントリスナー設定
-    // ===============================
-
-    // サインイン
+    // -------------------------------------------------
+    // サインイン処理
+    // -------------------------------------------------
     signInButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-
+        
         if (!email || !password) {
             showAuthError("メールアドレスとパスワードを入力してください。");
             return;
@@ -554,11 +551,13 @@ window.onload = function() {
             });
     });
 
-    // サインアップ
+    // -------------------------------------------------
+    // サインアップ処理
+    // -------------------------------------------------
     signUpButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-
+        
         if (!email || !password) {
             showAuthError("メールアドレスとパスワードを入力してください。");
             return;
@@ -578,29 +577,41 @@ window.onload = function() {
             });
     });
 
-    // サインアウト
+    // -------------------------------------------------
+    // サインアウト処理
+    // -------------------------------------------------
     signOutButton.addEventListener('click', () => {
         if (currentUser) {
+            // ログアウト時に users コレクションから自分のレコードを削除
             db.collection("users").doc(currentUser.uid).delete()
                 .catch(console.error);
         }
         auth.signOut();
     });
 
-    // その他ボタン
+    // -------------------------------------------------
+    // 通話・UI操作ボタン
+    // -------------------------------------------------
     sendMessageButton.addEventListener('click', sendMessage);
-    switchCameraButton.addEventListener('click', switchCamera);
-    hangupButton.addEventListener('click', endCall);
-    answerButton.addEventListener('click', answerCall);
-    rejectButton.addEventListener('click', rejectCall);
-    addFriendButton.addEventListener('click', addFriendByEmail);
+    switchCameraButton.addEventListener('click', switchCamera); 
+    hangupButton.addEventListener('click', endCall); 
+    answerButton.addEventListener('click', answerCall); 
+    rejectButton.addEventListener('click', rejectCall); 
+    addFriendButton.addEventListener('click', addFriendByEmail); 
 
+    // -------------------------------------------------
     // Firebase認証状態の監視
+    // -------------------------------------------------
     startAuthListener();
-}
+};
 
+// -------------------------------------------------
 // 認証エラーメッセージ表示ヘルパー
+// -------------------------------------------------
 function showAuthError(message, type = "red") {
+    const authStatusDiv = document.getElementById('auth-status');
+
+    // 既存のメッセージ削除
     document.querySelectorAll('#auth-status .auth-message').forEach(e => e.remove());
 
     const errorMsg = document.createElement('p');
@@ -611,6 +622,7 @@ function showAuthError(message, type = "red") {
 
     setTimeout(() => errorMsg.remove(), 5000);
 }
+</script>
 
 
 // =========================================================
@@ -1286,6 +1298,7 @@ function endCall() {
     </script>
 </body>
 </html>
+
 
 
 
