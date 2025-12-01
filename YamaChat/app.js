@@ -30,66 +30,107 @@ const configuration = {
 };
 
 // =========================================================
-// 2. 認証 & ユーザー管理
+// 2. DOM要素とイベントリスナーの初期化 (HTML読み込み後実行)
 // =========================================================
-const authStatusDiv = document.getElementById('auth-status');
-const appContainer = document.getElementById('app-container');
-const loadingSpinner = document.getElementById('loading-spinner'); // 【追加】ローディングスピナーの取得
-const usersContainer = document.getElementById('users-container');
+let authStatusDiv, appContainer, loadingSpinner, usersContainer, 
+    signInButton, signUpButton, signOutButton, 
+    sendMessageButton, switchCameraButton, hangupButton, 
+    answerButton, rejectButton,
+    localVideo, remoteVideo, callOverlay, callStatus, incomingModal; // 全要素を変数として宣言
 
-// ログイン監視
-auth.onAuthStateChanged(async (user) => {
-    // 【修正】まずローディング画面を非表示にする
-    loadingSpinner.style.display = 'none';
+window.onload = function() {
+    // DOM要素の取得
+    authStatusDiv = document.getElementById('auth-status');
+    appContainer = document.getElementById('app-container');
+    loadingSpinner = document.getElementById('loading-spinner');
+    usersContainer = document.getElementById('users-container');
 
-    if (user) {
-        currentUser = user;
-        document.getElementById('user-info').textContent = user.email;
-        
-        // ログイン済みならメインアプリを表示
-        authStatusDiv.style.display = 'none';
-        appContainer.style.display = 'flex';
+    signInButton = document.getElementById('signInButton');
+    signUpButton = document.getElementById('signUpButton');
+    signOutButton = document.getElementById('signOutButton');
+    sendMessageButton = document.getElementById('sendMessageButton');
+    switchCameraButton = document.getElementById('switchCameraButton');
+    hangupButton = document.getElementById('hangupButton');
+    answerButton = document.getElementById('answerButton');
+    rejectButton = document.getElementById('rejectButton');
+    
+    localVideo = document.getElementById('localVideo');
+    remoteVideo = document.getElementById('remoteVideo');
+    callOverlay = document.getElementById('call-overlay');
+    callStatus = document.getElementById('call-status');
+    incomingModal = document.getElementById('incoming-call-modal');
 
-        // 自分の情報をusersコレクションに保存 (オンライン通知代わり)
-        await db.collection('users').doc(user.uid).set({
-            email: user.email,
-            uid: user.uid,
-            lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
 
-        startChatListener();   
-        startUserListListener(); 
-        startIncomingCallListener(); 
-    } else {
-        currentUser = null;
-        // 未ログインなら認証画面を表示
-        authStatusDiv.style.display = 'block';
-        appContainer.style.display = 'none';
-    }
-});
+    // UIイベントリスナーの設定
+    signInButton.addEventListener('click', () => {
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        auth.signInWithEmailAndPassword(email, password).catch(e => alert(e.message));
+    });
 
-// UIイベントリスナー (ログイン/登録/ログアウト)
-document.getElementById('signInButton').addEventListener('click', () => {
-    const email = document.getElementById('emailInput').value;
-    const password = document.getElementById('passwordInput').value;
-    auth.signInWithEmailAndPassword(email, password).catch(e => alert(e.message));
-});
-document.getElementById('signUpButton').addEventListener('click', () => {
-    const email = document.getElementById('emailInput').value;
-    const password = document.getElementById('passwordInput').value;
-    auth.createUserWithEmailAndPassword(email, password).catch(e => alert(e.message));
-});
-document.getElementById('signOutButton').addEventListener('click', () => {
-    if (currentUser) {
-        // ログアウト時にユーザーデータをクリーンアップ（オプション）
-        db.collection('users').doc(currentUser.uid).delete().catch(console.error);
-    }
-    auth.signOut();
-});
+    signUpButton.addEventListener('click', () => {
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        auth.createUserWithEmailAndPassword(email, password).catch(e => alert(e.message));
+    });
+
+    signOutButton.addEventListener('click', () => {
+        if (currentUser) {
+            db.collection('users').doc(currentUser.uid).delete().catch(console.error);
+        }
+        auth.signOut();
+    });
+
+    sendMessageButton.addEventListener('click', sendMessage);
+    switchCameraButton.addEventListener('click', switchCamera); // カメラ切り替え
+    hangupButton.addEventListener('click', endCall); // 通話終了
+    answerButton.addEventListener('click', answerCall); // 応答
+    rejectButton.addEventListener('click', rejectCall); // 拒否
+
+    // Firebase認証状態の監視を開始
+    startAuthListener();
+}
 
 
 // =========================================================
-// 3. ユーザーリスト & チャット (LINE風)
+// 3. 認証 & ユーザー管理
+// =========================================================
+
+function startAuthListener() {
+    auth.onAuthStateChanged(async (user) => {
+        // 【修正】認証状態が確定した時点でローディングを非表示にする
+        loadingSpinner.style.display = 'none';
+
+        if (user) {
+            currentUser = user;
+            document.getElementById('user-info').textContent = user.email;
+            
+            // ログイン済みならメインアプリを表示
+            authStatusDiv.style.display = 'none';
+            appContainer.style.display = 'flex';
+
+            // 自分の情報をusersコレクションに保存 (オンライン通知代わり)
+            await db.collection('users').doc(user.uid).set({
+                email: user.email,
+                uid: user.uid,
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            startChatListener();   
+            startUserListListener(); 
+            startIncomingCallListener(); 
+        } else {
+            currentUser = null;
+            // 未ログインなら認証画面を表示
+            authStatusDiv.style.display = 'block';
+            appContainer.style.display = 'none';
+        }
+    });
+}
+
+
+// =========================================================
+// 4. ユーザーリスト & チャット
 // =========================================================
 
 // オンラインユーザー一覧を表示
@@ -113,7 +154,7 @@ function startUserListListener() {
 }
 
 // チャット送信
-document.getElementById('sendMessageButton').addEventListener('click', () => {
+function sendMessage() {
     const input = document.getElementById('messageInput');
     const text = input.value.trim();
     if (text && currentUser) {
@@ -125,7 +166,7 @@ document.getElementById('sendMessageButton').addEventListener('click', () => {
         });
         input.value = '';
     }
-});
+}
 
 // チャット受信 (LINE風表示)
 function startChatListener() {
@@ -156,17 +197,12 @@ function startChatListener() {
 }
 
 // =========================================================
-// 4. 1対1 WebRTC 通話機能
+// 5. 1対1 WebRTC 通話機能
 // =========================================================
-const callOverlay = document.getElementById('call-overlay');
-const localVideo = document.getElementById('localVideo');
-const remoteVideo = document.getElementById('remoteVideo');
-const callStatus = document.getElementById('call-status');
 
 // カメラ取得関数 (facingMode対応)
 async function getLocalStream() {
     try {
-        // スマホの背面/前面切り替えに対応
         const constraints = {
             audio: true,
             video: { facingMode: currentFacingMode }
@@ -176,7 +212,6 @@ async function getLocalStream() {
         return true;
     } catch (e) {
         console.error("カメラ取得エラー", e);
-        // alert("カメラの起動に失敗しました"); // アラートはカスタムモーダルを使うべきなのでコメントアウト
         return false;
     }
 }
@@ -185,8 +220,7 @@ async function getLocalStream() {
 window.startCall = async (targetUid, targetEmail) => {
     if (!await getLocalStream()) return;
     
-    // 1対1用の通話IDを作成 (発信者UID_着信者UID)
-    // 常にUIDを辞書順で並べ替えることで、どちらから発信しても同じIDになるようにする (より堅牢な設計)
+    // 1対1用の通話IDを作成 (辞書順で並べ替え)
     const uids = [currentUser.uid, targetUid].sort();
     currentCallId = `${uids[0]}_${uids[1]}`;
     
@@ -194,7 +228,6 @@ window.startCall = async (targetUid, targetEmail) => {
     callOverlay.style.display = 'flex';
     callStatus.textContent = `${targetEmail.split('@')[0]} さんに発信中...`;
     
-    // PeerConnection準備
     setupPeerConnection();
     
     const callDoc = db.collection('calls').doc(currentCallId);
@@ -234,11 +267,8 @@ function startIncomingCallListener() {
             if (change.type === 'added' || change.type === 'modified') {
                 const data = change.doc.data();
                 
-                // 自分が着信者であり、Offerがあり、Answerがまだない場合 = 着信中
                 if (data.calleeUid === currentUser.uid && data.offer && !data.answer) {
-                    // 既に通話中ではないかチェック
                     if (callOverlay.style.display !== 'flex') {
-                        // 発信者名を検索
                         db.collection('users').doc(data.callerUid).get().then(doc => {
                             const callerEmail = doc.data()?.email || '不明なユーザー';
                             showIncomingCallModal(change.doc.id, callerEmail.split('@')[0]);
@@ -251,17 +281,15 @@ function startIncomingCallListener() {
 }
 
 // 着信モーダル表示
-const incomingModal = document.getElementById('incoming-call-modal');
 let incomingCallId = null;
-
 function showIncomingCallModal(callId, callerName) {
     incomingCallId = callId;
     document.getElementById('caller-name').textContent = `${callerName} さんから電話です`;
     incomingModal.style.display = 'block';
 }
 
-// 応答ボタン
-document.getElementById('answerButton').addEventListener('click', async () => {
+// 応答ボタン処理
+async function answerCall() {
     incomingModal.style.display = 'none';
     currentCallId = incomingCallId;
     
@@ -286,16 +314,15 @@ document.getElementById('answerButton').addEventListener('click', async () => {
     await callDoc.update({
         answer: { type: answer.type, sdp: answer.sdp }
     });
-});
+}
 
-// 拒否ボタン
-document.getElementById('rejectButton').addEventListener('click', () => {
+// 拒否ボタン処理
+function rejectCall() {
     incomingModal.style.display = 'none';
-    // 通話ドキュメントを削除
     if (incomingCallId) {
          db.collection('calls').doc(incomingCallId).delete().catch(console.error);
     }
-});
+}
 
 
 // PeerConnection共通セットアップ
@@ -303,7 +330,6 @@ function setupPeerConnection() {
     if (peerConnection) peerConnection.close();
     peerConnection = new RTCPeerConnection(configuration);
     
-    // localStreamがnullでないことを保証
     if (localStream) {
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
     }
@@ -325,9 +351,12 @@ function setupPeerConnection() {
         snapshot.docChanges().forEach(async change => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
+                // 【修正】リモート設定前かどうかチェック
                 if (peerConnection && peerConnection.remoteDescription) {
                     try { await peerConnection.addIceCandidate(candidate); }
-                    catch (e) { console.error(e); }
+                    catch (e) { console.error("Candidate追加エラー:", e); }
+                } else {
+                     console.log("リモート記述設定前なのでCandidateの追加をスキップしました。");
                 }
             }
         });
@@ -343,20 +372,17 @@ function setupPeerConnection() {
 
 
 // =========================================================
-// 5. カメラ切り替え & 通話終了
+// 6. カメラ切り替え & 通話終了
 // =========================================================
 
 // カメラ切り替え (スマホ用)
-document.getElementById('switchCameraButton').addEventListener('click', async () => {
-    // 背面 <-> 前面 切り替え
+async function switchCamera() {
     currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
     
-    // 現在のストリームを停止
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
     }
     
-    // 新しいモードでカメラ再取得
     await getLocalStream();
     
     // PeerConnectionの映像トラックを差し替える
@@ -367,11 +393,9 @@ document.getElementById('switchCameraButton').addEventListener('click', async ()
             sender.replaceTrack(videoTrack);
         }
     }
-});
+}
 
 // 通話終了
-document.getElementById('hangupButton').addEventListener('click', endCall);
-
 function endCall() {
     if (peerConnection) peerConnection.close();
     if (localStream) {
@@ -381,8 +405,9 @@ function endCall() {
     localStream = null;
     peerConnection = null;
     currentCallId = null;
-    // ページをリロードする代わりに、UIをリセット
-    // location.reload(); 
+    // UIをリセットしてユーザーリストを再読み込み
     document.getElementById('users-container').innerHTML = '';
-    startUserListListener();
+    if (currentUser) {
+        startUserListListener();
+    }
 }
