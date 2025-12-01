@@ -1,0 +1,409 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f7f7f7;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+}
+
+.main-container {
+    display: flex;
+    width: 100%;
+    max-width: 1200px;
+    height: 85vh;
+    max-height: 900px;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+/* 左パネル (ユーザーリスト) */
+.left-panel {
+    width: 300px;
+    min-width: 250px;
+    border-right: 1px solid #eee;
+    background-color: #f0f0f0;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.header-section {
+    padding-bottom: 15px;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 15px;
+}
+
+.user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 5px;
+    margin-bottom: 8px;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s;
+}
+
+.user-item:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.user-info-status {
+    display: flex;
+    align-items: center;
+}
+
+.online-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.user-item.online .online-dot {
+    background-color: #34c759;
+}
+
+.user-item.offline .online-dot {
+    background-color: #ccc;
+}
+
+.user-item button {
+    background-color: #007aff;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-size: 12px;
+    transition: background-color 0.2s;
+    cursor: pointer;
+    border: none;
+}
+
+.user-item button:hover {
+    background-color: #0056b3;
+}
+
+.users-list {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+/* 右パネル (チャット/ビデオ) */
+.right-panel {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.chat-area {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    background-color: #f0f8ff;
+}
+
+.input-area {
+    display: flex;
+    padding: 10px 20px;
+    border-top: 1px solid #eee;
+    background-color: white;
+}
+
+.input-area input {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    margin-right: 10px;
+    outline: none;
+}
+
+.input-area button {
+    background-color: #007aff;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 10px;
+    transition: background-color 0.2s;
+    cursor: pointer;
+    border: none;
+}
+
+.input-area button:hover {
+    background-color: #0056b3;
+}
+
+/* チャットメッセージのスタイル (LINE風) */
+.message-row {
+    display: flex;
+    margin-bottom: 10px;
+}
+
+.other-message-row {
+    justify-content: flex-start;
+}
+
+.my-message-row {
+    justify-content: flex-end;
+}
+
+.message {
+    max-width: 60%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    line-height: 1.4;
+    position: relative;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+    font-size: 14px;
+}
+
+.other-message-row .message {
+    background-color: white;
+    border-bottom-left-radius: 2px;
+    margin-right: 8px;
+}
+
+.my-message-row .message {
+    background-color: #8dff8d;
+    border-bottom-right-radius: 2px;
+    margin-left: 8px;
+}
+
+.timestamp {
+    font-size: 10px;
+    color: #999;
+    align-self: flex-end;
+    margin: 0 5px;
+}
+
+.sender-name {
+    display: block;
+    font-size: 10px;
+    color: #555;
+    margin-bottom: 3px;
+    font-weight: 600;
+}
+
+/* ビデオオーバーレイ */
+#call-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: black;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+#remoteVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+#localVideo {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 120px;
+    height: 160px;
+    border-radius: 10px;
+    border: 3px solid white;
+    object-fit: cover;
+    z-index: 101;
+}
+
+.call-controls {
+    position: absolute;
+    bottom: 30px;
+    display: flex;
+    gap: 20px;
+    z-index: 102;
+}
+
+.call-controls button {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 24px;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    border: none;
+}
+
+.call-controls button:hover {
+    opacity: 0.8;
+}
+
+#hangupButton {
+    background-color: #ff3b30;
+}
+
+#switchCameraButton {
+    background-color: #5856d6;
+}
+
+#call-status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 1.2rem;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+    z-index: 103;
+}
+
+/* 着信モーダル */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 200;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.modal-buttons button {
+    margin: 10px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: bold;
+    color: white;
+    cursor: pointer;
+    border: none;
+}
+
+#answerButton {
+    background-color: #34c759;
+}
+
+#rejectButton {
+    background-color: #ff3b30;
+}
+
+/* ローディング・認証画面 */
+.loading-spinner, #auth-status {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 30px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+#auth-status input {
+    padding: 10px;
+    margin: 8px 0;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    width: 250px;
+    display: block;
+}
+
+#auth-status button {
+    background-color: #007aff;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-top: 10px;
+    width: 100%;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+}
+
+.loading-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ユーティリティクラス */
+.text-xl { font-size: 1.25rem; }
+.text-lg { font-size: 1.125rem; }
+.text-sm { font-size: 0.875rem; }
+.text-xs { font-size: 0.75rem; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-3 { margin-bottom: 0.75rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-5 { margin-bottom: 1.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 0.75rem; }
+.mt-4 { margin-top: 1rem; }
+.p-2 { padding: 0.5rem; }
+.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.flex { display: flex; }
+.gap-2 { gap: 0.5rem; }
+.flex-grow { flex-grow: 1; }
+.border { border: 1px solid #ccc; }
+.rounded-lg { border-radius: 0.5rem; }
+.text-red-500 { color: #ff3b30; }
+.text-red-700 { color: #c7352b; }
+.text-gray-500 { color: #999; }
+.text-gray-700 { color: #555; }
+.bg-green-500 { background-color: #34c759; }
+.bg-green-600 { background-color: #2fb350; }
+.hover\:text-red-700:hover { color: #c7352b; }
+.hover\:bg-green-600:hover { background-color: #2fb350; }
+.transition { transition: all 0.2s; }

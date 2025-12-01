@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LINE風 ビデオ通話＆チャット</title>
+    
+    <!-- CSS読み込み -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Firebase SDKをCDNで読み込み -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+
+    <!-- ローディングスピナー (初期表示) -->
+    <div id="loading-spinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>認証を待機しています</p>
+    </div>
+
+    <!-- 認証画面 (未ログイン時) -->
+    <div id="auth-status" style="display:none;">
+        <h2 class="text-xl font-bold mb-4">サインイン / サインアップ</h2>
+        <input type="email" id="emailInput" placeholder="メールアドレス" value="test@example.com">
+        <input type="password" id="passwordInput" placeholder="パスワード" value="password123">
+        <button id="signInButton">サインイン</button>
+        <button id="signUpButton" style="background-color: #34c759;">サインアップ</button>
+        <p class="text-xs mt-3 text-gray-500">※テスト用の簡易認証です。</p>
+    </div>
+
+    <!-- メインアプリケーションコンテナ (ログイン後) -->
+    <div id="app-container" class="main-container" style="display:none;">
+        
+        <!-- 左サイドパネル (フレンド/ユーザーリスト) -->
+        <div class="left-panel">
+            <div class="header-section">
+                <p id="user-info" class="font-bold text-lg mb-1"></p>
+                <button id="signOutButton" class="text-sm text-red-500 hover:text-red-700 transition">ログアウト</button>
+
+                <div class="mt-4 flex gap-2">
+                    <input type="email" id="friendEmailInput" placeholder="フレンドのメールアドレス" class="p-2 border rounded-lg flex-grow text-sm">
+                    <button id="addFriendButton" class="text-sm px-3 py-1 bg-green-500 hover:bg-green-600 rounded-lg">追加</button>
+                </div>
+                <h3 class="font-semibold text-gray-700 mt-4">フレンドリスト</h3>
+            </div>
+            
+            <div id="users-container" class="users-list">
+                <p style="text-align:center; color:#999; margin-top:20px;">フレンドとオンライン状態を表示...</p>
+            </div>
+        </div>
+
+        <!-- 右メインパネル (チャットとビデオ) -->
+        <div class="right-panel">
+            
+            <!-- チャットエリア -->
+            <div id="chat-area" class="chat-area">
+                <!-- メッセージがここに挿入されます -->
+            </div>
+
+            <!-- 入力エリア -->
+            <div class="input-area">
+                <input type="text" id="messageInput" placeholder="メッセージを入力...">
+                <button id="sendMessageButton">送信</button>
+            </div>
+            
+            <!-- ビデオ通話オーバーレイ -->
+            <div id="call-overlay">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <video id="localVideo" autoplay playsinline muted></video>
+                <p id="call-status">接続待機中...</p>
+                
+                <div class="call-controls">
+                    <button id="hangupButton">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/><line x1="22" x2="2" y1="2" y2="22"/></svg>
+                    </button>
+                    <button id="switchCameraButton">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 10 3 10 3 19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9Z"/><path d="m3 10 2.5-4.5A2 2 0 0 1 7.24 4h9.52a2 2 0 0 1 1.74 1.5L21 10"/><circle cx="12" cy="14" r="3"/></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 着信モーダル -->
+            <div id="incoming-call-modal" class="modal">
+                <div class="modal-content">
+                    <p id="caller-name" class="text-xl font-bold mb-5">着信中...</p>
+                    <div class="modal-buttons">
+                        <button id="answerButton">応答</button>
+                        <button id="rejectButton">拒否</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 着信音 -->
+            <audio id="incomingCallSound" loop src="https://assets.mixkit.co/sfx/preview/mixkit-analog-phone-ring-2374.mp3" style="display:none;"></audio>
+        </div>
+    </div>
+    
+    <!-- JavaScript読み込み -->
+    <script src="app.js"></script>
+</body>
+</html>
