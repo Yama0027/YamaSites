@@ -4,12 +4,12 @@
 
 // 🚨🚨🚨 あなたのFirebaseプロジェクトの設定に置き換えてください 🚨🚨🚨
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDjDgy_QanVzmgdUs9t86qfEsTeSTXJnaY",
+  authDomain: "nasuweb-467f9.firebaseapp.com",
+  projectId: "nasuweb-467f9",
+  storageBucket: "nasuweb-467f9.firebasestorage.app",
+  messagingSenderId: "23088520786",
+  appId: "1:23088520786:web:cef756e264b7f64214498b"
 };
 
 // グローバル変数
