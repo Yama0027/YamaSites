@@ -26,13 +26,30 @@
         
         /* チャットエリア */
         #chat-area { flex: 1; overflow-y: scroll; padding: 15px; background-color: #7296cc; }
-        .message { margin-bottom: 10px; max-width: 80%; padding: 8px 12px; border-radius: 15px; font-size: 15px; position: relative; word-wrap: break-word; }
+
+        /* メッセージコンテナ（日時とメッセージ本体をフレックスで配置するためのラッパー） */
+        .message-row { display: flex; margin-bottom: 10px; align-items: flex-end; }
+        .message-row.my-message-row { justify-content: flex-end; }
+        .message-row.other-message-row { justify-content: flex-start; }
+
+        .message { max-width: 80%; padding: 8px 12px; border-radius: 15px; font-size: 15px; position: relative; word-wrap: break-word; }
         
         /* 自分のメッセージ (緑・右寄せ) */
-        .my-message { background-color: #8de055; margin-left: auto; color: black; border-top-right-radius: 0; }
+        .my-message-row .message { background-color: #8de055; color: black; border-top-right-radius: 0; }
         /* 相手のメッセージ (白・左寄せ) */
-        .other-message { background-color: white; margin-right: auto; color: black; border-top-left-radius: 0; }
-        .sender-name { font-size: 10px; color: #333; margin-bottom: 2px; display: block; }
+        .other-message-row .message { background-color: white; color: black; border-top-left-radius: 0; }
+
+        /* 送信者名 (相手メッセージの上に表示) */
+        .sender-name { font-size: 12px; color: #333; margin-bottom: 2px; display: block; text-align: left; }
+
+        /* 【追加】日時表示スタイル */
+        .timestamp { 
+            font-size: 10px; 
+            color: #444; 
+            margin: 0 5px; /* メッセージとの間隔 */
+            white-space: nowrap; /* 折り返さない */
+        }
+        .message-row.my-message-row .timestamp { order: -1; } /* 自分のメッセージでは日時を左に */
         
         /* 入力エリア */
         #input-area { background: white; padding: 10px; display: flex; align-items: center; }
@@ -56,7 +73,7 @@
         #answerButton { background-color: #00c300; color: white; }
         #rejectButton { background-color: #ff3b30; color: white; }
 
-        /* 【追加】ロードスピナーのスタイル */
+        /* ロードスピナーのスタイル */
         #loading-spinner {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #7296cc; display: flex; justify-content: center; align-items: center;
@@ -79,7 +96,7 @@
 </head>
 <body>
     
-    <!-- 【追加】ロードスピナー -->
+    <!-- ロードスピナー -->
     <div id="loading-spinner">
         認証状態を確認中... <div class="spinner"></div>
     </div>
