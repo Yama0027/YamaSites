@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -7,12 +8,14 @@
     <!-- Tailwind CSSを読み込み -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Firebase SDKをCDNで読み込み、グローバルな 'firebase' オブジェクトを作成 -->
-    <!-- v8互換のSDKを使用し、グローバル変数としてAPIを直接利用します -->
+    <!-- Firebase SDKをCDNで読み込み -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     
+    <!-- WebRTC設定 (TURNサーバー情報) を読み込む -->
+    <script src="./config.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body {
@@ -424,7 +427,7 @@
             </div>
 
             <!-- 着信音 (ループ再生のため) -->
-            <audio id="incomingCallSound" loop src="sound.mp3" style="display:none;"></audio>
+            <audio id="incomingCallSound" loop src="https://assets.mixkit.co/sfx/preview/mixkit-analog-phone-ring-2374.mp3" style="display:none;"></audio>
         </div>
     </div>
     
@@ -445,19 +448,31 @@ let peerConnection = null;
 let currentFacingMode = 'user'; 
 let notificationPermissionGranted = false; 
 
-// Firebase設定とAppIDの取得
-// 環境変数から取得し、未定義の場合はフォールバックする
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+// 🚨🚨🚨 ここをあなたのFirebaseプロジェクトの設定に置き換えてください 🚨🚨🚨
+// Firebase Consoleでプロジェクト設定 > マイアプリ > SDK の設定と構成 から取得
+const firebaseConfig = {
+    apiKey: "/* YOUR_API_KEY_HERE */",
+    authDomain: "/* YOUR_AUTH_DOMAIN_HERE */",
+    projectId: "/* YOUR_PROJECT_ID_HERE */",
+    // 他に必要な設定があればここに追加
+};
+// 🚨🚨🚨 設定の置き換えを忘れずに行ってください 🚨🚨🚨
 
-// 認証エラー対策のため、firebaseConfigが空の場合はデフォルト値を設定
-if (!firebaseConfig.apiKey) {
-    console.warn("Firebase API Key is missing. Using placeholder. Ensure __firebase_config is correctly provided by the environment.");
-    // 開発環境で動作しない場合のために、ダミーキーを設定 
-    firebaseConfig.apiKey = "AIzaSy_DummyApiKeyForDevelopment"; 
-    firebaseConfig.authDomain = "example.firebaseapp.com";
-    firebaseConfig.projectId = "example-project";
+// Firestoreのセキュリティルールに合わせるためのアプリID（projectIdを代用）
+const appId = firebaseConfig.projectId;
+
+// TURNサーバー設定は config.js からグローバル変数 configuration として読み込まれます
+if (typeof configuration === 'undefined') {
+    console.error("config.js が読み込まれていないか、TURNサーバー設定が見つかりません。フォールバックの無料TURNサーバーを使用します。");
+    // フォールバックとして、オープンリレーを使用
+    var configuration = { 
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'turn:turn.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+    };
 }
+
 
 // Firebase初期化 (グローバルな 'firebase' オブジェクトからアクセス)
 try {
@@ -467,7 +482,6 @@ try {
     
     // Firestoreの設定を調整 (推奨設定を有効にする)
     db.settings({
-        // v8互換でのデフォルト設定を明示的に指定
         ignoreUndefinedProperties: true
     });
 
@@ -479,14 +493,6 @@ try {
     document.getElementById('loading-spinner').innerHTML = `<p class="text-red-500">Firebaseの初期化に失敗しました。コンソールを確認してください。</p>`;
 }
 
-
-// TURNサーバー設定 (WebRTC接続用)
-const configuration = {
-    iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'turn:turn.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
-    ]
-};
 
 // =========================================================
 // 2. DOM要素とイベントリスナーの初期化 (HTML読み込み後実行)
@@ -527,19 +533,43 @@ window.onload = function() {
     signInButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-        auth.signInWithEmailAndPassword(email, password).catch(e => {
-            console.error("サインインエラー:", e.message);
-            showAuthError(`サインイン失敗: ${e.code.replace('auth/', '')}`);
-        });
+        
+        // 入力チェック
+        if (!email || !password) {
+            showAuthError("メールアドレスとパスワードを入力してください。");
+            return;
+        }
+
+        auth.signInWithEmailAndPassword(email, password)
+            .catch(e => {
+                console.error("サインインエラー:", e.message);
+                showAuthError(`サインイン失敗: ${e.code.replace('auth/', '')}`);
+            });
     });
 
     signUpButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-        auth.createUserWithEmailAndPassword(email, password).catch(e => {
-            console.error("サインアップエラー:", e.message);
-            showAuthError(`サインアップ失敗: ${e.code.replace('auth/', '')}`);
-        });
+        
+        // 入力チェックとパスワード長チェック
+        if (!email || !password) {
+            showAuthError("メールアドレスとパスワードを入力してください。");
+            return;
+        }
+        if (password.length < 6) {
+            showAuthError("パスワードは6文字以上で入力してください。");
+            return;
+        }
+
+        auth.createUserWithEmailAndPassword(email, password)
+            .then(() => {
+                // サインアップ成功後、Firebaseが自動的にサインイン状態にするため、特に処理は不要だが、成功メッセージを表示
+                showAuthError("サインアップに成功しました！自動的にログインします。", "green");
+            })
+            .catch(e => {
+                console.error("サインアップエラー:", e.message);
+                showAuthError(`サインアップ失敗: ${e.code.replace('auth/', '')}`);
+            });
     });
 
     signOutButton.addEventListener('click', () => {
@@ -563,12 +593,13 @@ window.onload = function() {
 }
 
 // 認証エラーメッセージ表示ヘルパー (alertの代替)
-function showAuthError(message) {
+function showAuthError(message, type = "red") {
     // 既存のエラーメッセージを削除
-    document.querySelectorAll('#auth-status .text-red-500').forEach(e => e.remove());
+    document.querySelectorAll('#auth-status .auth-message').forEach(e => e.remove());
 
     const errorMsg = document.createElement('p');
-    errorMsg.className = 'text-red-500 text-sm mt-2';
+    errorMsg.className = `auth-message text-sm mt-2 font-semibold`;
+    errorMsg.style.color = type === 'green' ? '#34c759' : '#ff3b30';
     errorMsg.textContent = message;
     authStatusDiv.appendChild(errorMsg);
     setTimeout(() => errorMsg.remove(), 5000);
@@ -586,6 +617,7 @@ function startAuthListener() {
 
         if (user) {
             currentUser = user;
+            // emailを短縮して表示
             document.getElementById('user-info').textContent = `${user.email.split('@')[0]} (ID: ${user.uid.substring(0, 8)}...)`;
             
             // ログイン済みならメインアプリを表示
@@ -1117,6 +1149,7 @@ function rejectCall(deleteFirestore = true) {
 // PeerConnection共通セットアップ (v8構文)
 function setupPeerConnection() {
     if (peerConnection) peerConnection.close();
+    // configuration 変数は config.js から読み込まれます
     peerConnection = new RTCPeerConnection(configuration);
     
     if (localStream) {
@@ -1244,3 +1277,5 @@ function endCall() {
     </script>
 </body>
 </html>
+
+
