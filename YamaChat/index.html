@@ -8,7 +8,7 @@
         /* --- LINE風デザインのベース --- */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background-color: #7296cc; height: 100vh; display: flex; flex-direction: column; }
         
-        /* 【修正1】認証画面とアプリコンテナを初期状態で非表示に */
+        /* 認証画面とアプリコンテナを初期状態で非表示に */
         #auth-status, #app-container { display: none; }
         
         /* 認証画面 */
@@ -20,10 +20,19 @@
         .app-container { flex: 1; flex-direction: column; height: 100%; }
         
         /* ユーザーリスト（通話相手選択） */
-        #user-list { background: white; padding: 10px; max-height: 150px; overflow-y: auto; border-bottom: 1px solid #ddd; }
+        #user-list { background: white; padding: 10px; max-height: 250px; overflow-y: auto; border-bottom: 1px solid #ddd; }
+        
+        /* 【新規】フレンド追加エリア */
+        #add-friend-area { display: flex; gap: 5px; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+        #friendEmailInput { flex: 1; padding: 5px 10px; border: 1px solid #ddd; border-radius: 5px; }
+        #addFriendButton { background-color: #00a8ff; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; }
+
         .user-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
         .user-item button { background-color: #00c300; color: white; border: none; padding: 5px 15px; border-radius: 15px; cursor: pointer; }
-        
+        .user-item .online-dot { width: 8px; height: 8px; background-color: gray; border-radius: 50%; margin-right: 8px; }
+        .user-item.online .online-dot { background-color: #00c300; }
+        .user-info-status { display: flex; align-items: center; }
+
         /* チャットエリア */
         #chat-area { flex: 1; overflow-y: scroll; padding: 15px; background-color: #7296cc; }
 
@@ -42,7 +51,7 @@
         /* 送信者名 (相手メッセージの上に表示) */
         .sender-name { font-size: 12px; color: #333; margin-bottom: 2px; display: block; text-align: left; }
 
-        /* 【追加】日時表示スタイル */
+        /* 日時表示スタイル */
         .timestamp { 
             font-size: 10px; 
             color: #444; 
@@ -96,6 +105,15 @@
 </head>
 <body>
     
+    <!-- 着信音用のオーディオ要素 (ミュートにしておき、JSで再生) -->
+    <!-- MP3ファイルを直接読み込めないため、ここでは仮のソースURLを使用します。 -->
+    <!-- 実際のアプリでは、ご自身のサーバーに音源ファイルを配置してください。 -->
+    <audio id="incomingCallSound" loop preload="auto">
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mp3">
+        <!-- 鳴らない場合は、ご自身の環境で動作する別のURLに差し替えてください -->
+        音源がロードできません。
+    </audio>
+
     <!-- ロードスピナー -->
     <div id="loading-spinner">
         認証状態を確認中... <div class="spinner"></div>
@@ -114,7 +132,14 @@
     <div id="app-container" class="app-container">
         <!-- ユーザーリスト (通話発信) -->
         <div id="user-list">
-            <p style="margin:0 0 5px 0; font-size:12px; color:#666;">オンラインのユーザー (通話したい人を選んでね)</p>
+            <p style="margin:0 0 5px 0; font-size:12px; color:#666; font-weight:bold;">フレンド (オンラインのみ表示)</p>
+            
+            <!-- 【新規】フレンド追加エリア -->
+            <div id="add-friend-area">
+                <input type="email" id="friendEmailInput" placeholder="フレンドのメールアドレス">
+                <button id="addFriendButton">追加</button>
+            </div>
+
             <div id="users-container"></div>
         </div>
 
