@@ -35,7 +35,7 @@ const configuration = {
 let authStatusDiv, appContainer, loadingSpinner, usersContainer, 
     signInButton, signUpButton, signOutButton, 
     sendMessageButton, switchCameraButton, hangupButton, 
-    answerButton, rejectButton,
+    answerButton, rejectButton, addFriendButton, friendEmailInput, incomingCallSound,
     localVideo, remoteVideo, callOverlay, callStatus, incomingModal; // 全要素を変数として宣言
 
 window.onload = function() {
@@ -53,6 +53,9 @@ window.onload = function() {
     hangupButton = document.getElementById('hangupButton');
     answerButton = document.getElementById('answerButton');
     rejectButton = document.getElementById('rejectButton');
+    addFriendButton = document.getElementById('addFriendButton'); // 【新規】
+    friendEmailInput = document.getElementById('friendEmailInput'); // 【新規】
+    incomingCallSound = document.getElementById('incomingCallSound'); // 【新規】
     
     localVideo = document.getElementById('localVideo');
     remoteVideo = document.getElementById('remoteVideo');
@@ -76,16 +79,18 @@ window.onload = function() {
 
     signOutButton.addEventListener('click', () => {
         if (currentUser) {
+            // ログアウト時にusersコレクションから自分のレコードを削除
             db.collection('users').doc(currentUser.uid).delete().catch(console.error);
         }
         auth.signOut();
     });
 
     sendMessageButton.addEventListener('click', sendMessage);
-    switchCameraButton.addEventListener('click', switchCamera); // カメラ切り替え
-    hangupButton.addEventListener('click', endCall); // 通話終了
-    answerButton.addEventListener('click', answerCall); // 応答
-    rejectButton.addEventListener('click', rejectCall); // 拒否
+    switchCameraButton.addEventListener('click', switchCamera); 
+    hangupButton.addEventListener('click', endCall); 
+    answerButton.addEventListener('click', answerCall); 
+    rejectButton.addEventListener('click', rejectCall); 
+    addFriendButton.addEventListener('click', addFriendByEmail); // 【新規】フレンド追加リスナー
 
     // Firebase認証状態の監視を開始
     startAuthListener();
@@ -93,7 +98,7 @@ window.onload = function() {
 
 
 // =========================================================
-// 3. 認証 & ユーザー管理
+// 3. 認証 & ユーザー管理 & フレンド機能
 // =========================================================
 
 function startAuthListener() {
@@ -117,7 +122,7 @@ function startAuthListener() {
             }, { merge: true });
 
             startChatListener();   
-            startUserListListener(); 
+            startUserListListener(); // 【変更】フレンドリストの監視を開始
             startIncomingCallListener(); 
         } else {
             currentUser = null;
@@ -128,30 +133,118 @@ function startAuthListener() {
     });
 }
 
+// 【新規】メールアドレスでフレンドを追加する
+async function addFriendByEmail() {
+    const email = friendEmailInput.value.trim();
+    if (!email || email === currentUser.email) {
+        alert("有効なメールアドレスを入力してください。または自分自身は追加できません。");
+        return;
+    }
 
-// =========================================================
-// 4. ユーザーリスト & チャット
-// =========================================================
+    try {
+        // 1. そのメールアドレスを持つユーザーを検索
+        const usersSnapshot = await db.collection('users').where('email', '==', email).limit(1).get();
 
-// オンラインユーザー一覧を表示
+        if (usersSnapshot.empty) {
+            alert("このメールアドレスを持つユーザーは見つかりませんでした。");
+            return;
+        }
+
+        const friendDoc = usersSnapshot.docs[0];
+        const friendUid = friendDoc.id;
+
+        // 2. 自分のフレンドリストに追加
+        await db.collection('friends').doc(currentUser.uid).collection('list').doc(friendUid).set({
+            uid: friendUid,
+            email: email,
+            addedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        alert(`${email.split('@')[0]} さんをフレンドに追加しました！`);
+        friendEmailInput.value = '';
+
+    } catch (e) {
+        console.error("フレンド追加エラー:", e);
+        alert("フレンド追加中にエラーが発生しました。");
+    }
+}
+
+// 【新規】フレンドリストの監視と表示
 function startUserListListener() {
-    // 自分以外のユーザーを表示
-    db.collection('users').onSnapshot(snapshot => {
-        usersContainer.innerHTML = '';
-        snapshot.forEach(doc => {
+    const onlineUsers = {}; // オンライン状態にある全ユーザーを保持
+    let friends = {};       // 自分のフレンドリストを保持
+
+    // 1. オンラインユーザーの監視
+    db.collection('users').onSnapshot(onlineSnapshot => {
+        onlineUsers.length = 0; // リセット
+        onlineSnapshot.forEach(doc => {
             const userData = doc.data();
             if (userData.uid !== currentUser.uid) {
-                const div = document.createElement('div');
-                div.className = 'user-item';
-                div.innerHTML = `
-                    <span>${userData.email.split('@')[0]}</span>
-                    <button onclick="startCall('${userData.uid}', '${userData.email}')">📞 通話</button>
-                `;
-                usersContainer.appendChild(div);
+                onlineUsers[userData.uid] = userData;
             }
         });
+        renderFriendList(friends, onlineUsers);
+    });
+
+    // 2. 自分のフレンドリストの監視
+    db.collection('friends').doc(currentUser.uid).collection('list').onSnapshot(friendSnapshot => {
+        friends = {}; // リセット
+        friendSnapshot.forEach(doc => {
+            const friendData = doc.data();
+            friends[friendData.uid] = friendData;
+        });
+        renderFriendList(friends, onlineUsers);
     });
 }
+
+// 【新規】フレンドリストのDOM描画
+function renderFriendList(friends, onlineUsers) {
+    usersContainer.innerHTML = '';
+    
+    const friendUids = Object.keys(friends);
+
+    if (friendUids.length === 0) {
+        usersContainer.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">まだフレンドがいません。「フレンドのメールアドレス」を入力して追加しましょう。</p>';
+        return;
+    }
+
+    friendUids.forEach(uid => {
+        const friendData = friends[uid];
+        const isOnline = !!onlineUsers[uid]; // オンラインユーザーリストに存在するか
+        const displayData = isOnline ? onlineUsers[uid] : friendData;
+        
+        const div = document.createElement('div');
+        div.className = `user-item ${isOnline ? 'online' : 'offline'}`;
+        div.innerHTML = `
+            <div class="user-info-status">
+                <span class="online-dot"></span>
+                <span>${displayData.email.split('@')[0]} ${isOnline ? '(Online)' : '(Offline)'}</span>
+            </div>
+            ${isOnline 
+                ? `<button onclick="startCall('${displayData.uid}', '${displayData.email}')">📞 通話</button>`
+                : `<button onclick="removeFriend('${displayData.uid}', '${displayData.email}')" style="background-color: #ff3b30;">削除</button>`
+            }
+        `;
+        usersContainer.appendChild(div);
+    });
+}
+
+// 【新規】フレンド削除
+window.removeFriend = async (friendUid, friendEmail) => {
+    if (confirm(`${friendEmail.split('@')[0]} さんをフレンドリストから削除しますか？`)) {
+        try {
+            await db.collection('friends').doc(currentUser.uid).collection('list').doc(friendUid).delete();
+        } catch(e) {
+            console.error("フレンド削除エラー:", e);
+            alert("フレンド削除中にエラーが発生しました。");
+        }
+    }
+}
+
+
+// =========================================================
+// 4. チャット
+// =========================================================
 
 // チャット送信
 function sendMessage() {
@@ -168,10 +261,9 @@ function sendMessage() {
     }
 }
 
-// 【追加】タイムスタンプを "hh:mm" 形式に整形するヘルパー関数
+// タイムスタンプを "hh:mm" 形式に整形するヘルパー関数
 function formatTimestamp(timestamp) {
     if (!timestamp) return '';
-    // FirestoreのTimestampオブジェクトか、Dateオブジェクトかを確認
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -185,50 +277,59 @@ function startChatListener() {
         chatArea.innerHTML = '';
         snapshot.forEach(doc => {
             const data = doc.data();
-            const isMe = data.uid === currentUser.uid;
-            const userName = data.email ? data.email.split('@')[0] : 'ゲスト';
-            const timeString = formatTimestamp(data.timestamp); // 日時を整形
             
-            // 全体をラップする row div
-            const rowDiv = document.createElement('div');
-            rowDiv.className = `message-row ${isMe ? 'my-message-row' : 'other-message-row'}`;
-            
-            // タイムスタンプ
-            const timeSpan = document.createElement('span');
-            timeSpan.className = 'timestamp';
-            timeSpan.textContent = timeString;
+            // メッセージテキストがないドキュメントはスキップ
+            if (!data.text || typeof data.text !== 'string') return; 
 
-            // メッセージ本体
-            const msgDiv = document.createElement('div');
-            msgDiv.className = 'message';
-            
-            // ユーザー名 (相手のメッセージでのみ表示)
-            if (!isMe) {
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'sender-name';
-                nameSpan.textContent = userName;
-                msgDiv.appendChild(nameSpan);
-            }
-            
-            const textNode = document.createTextNode(data.text);
-            msgDiv.appendChild(textNode);
-            
-            // 要素の追加順序を決定
-            if (isMe) {
-                // 自分: [日時] [メッセージ]
-                rowDiv.appendChild(timeSpan);
-                rowDiv.appendChild(msgDiv);
-            } else {
-                // 相手: [メッセージ] [日時] (メッセージの中にユーザー名を含む)
-                rowDiv.appendChild(msgDiv);
-                rowDiv.appendChild(timeSpan);
-            }
+            try { 
+                const isMe = data.uid === currentUser.uid;
+                const userName = data.email ? data.email.split('@')[0] : 'ゲスト';
+                const timeString = formatTimestamp(data.timestamp); // 日時を整形
+                
+                // 全体をラップする row div
+                const rowDiv = document.createElement('div');
+                rowDiv.className = `message-row ${isMe ? 'my-message-row' : 'other-message-row'}`;
+                
+                // タイムスタンプ
+                const timeSpan = document.createElement('span');
+                timeSpan.className = 'timestamp';
+                timeSpan.textContent = timeString;
 
-            chatArea.appendChild(rowDiv);
+                // メッセージ本体
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message';
+                
+                // ユーザー名 (相手のメッセージでのみ表示)
+                if (!isMe) {
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'sender-name';
+                    nameSpan.textContent = userName;
+                    msgDiv.appendChild(nameSpan);
+                }
+                
+                const textNode = document.createTextNode(data.text);
+                msgDiv.appendChild(textNode);
+                
+                // 要素の追加順序を決定
+                if (isMe) {
+                    // 自分: [日時] [メッセージ]
+                    rowDiv.appendChild(timeSpan);
+                    rowDiv.appendChild(msgDiv);
+                } else {
+                    // 相手: [メッセージ] [日時] (メッセージの中にユーザー名を含む)
+                    rowDiv.appendChild(msgDiv);
+                    rowDiv.appendChild(timeSpan);
+                }
+
+                chatArea.appendChild(rowDiv);
+            } catch (e) {
+                console.error("チャットメッセージの表示中にエラーが発生しました:", e, data);
+            }
         });
         chatArea.scrollTop = chatArea.scrollHeight;
     });
 }
+
 
 // =========================================================
 // 5. 1対1 WebRTC 通話機能
@@ -246,6 +347,7 @@ async function getLocalStream() {
         return true;
     } catch (e) {
         console.error("カメラ取得エラー", e);
+        // alert("カメラやマイクが利用できません。権限を確認してください。");
         return false;
     }
 }
@@ -303,6 +405,9 @@ function startIncomingCallListener() {
                 
                 if (data.calleeUid === currentUser.uid && data.offer && !data.answer) {
                     if (callOverlay.style.display !== 'flex') {
+                        // 【新規】着信時に音を鳴らす
+                        try { incomingCallSound.play(); } catch(e) { console.warn("着信音再生エラー:", e); }
+                        
                         db.collection('users').doc(data.callerUid).get().then(doc => {
                             const callerEmail = doc.data()?.email || '不明なユーザー';
                             showIncomingCallModal(change.doc.id, callerEmail.split('@')[0]);
@@ -325,6 +430,9 @@ function showIncomingCallModal(callId, callerName) {
 // 応答ボタン処理
 async function answerCall() {
     incomingModal.style.display = 'none';
+    incomingCallSound.pause(); // 【新規】音を止める
+    incomingCallSound.currentTime = 0;
+    
     currentCallId = incomingCallId;
     
     if (!await getLocalStream()) return;
@@ -353,6 +461,9 @@ async function answerCall() {
 // 拒否ボタン処理
 function rejectCall() {
     incomingModal.style.display = 'none';
+    incomingCallSound.pause(); // 【新規】音を止める
+    incomingCallSound.currentTime = 0;
+
     if (incomingCallId) {
          db.collection('calls').doc(incomingCallId).delete().catch(console.error);
     }
@@ -439,6 +550,10 @@ function endCall() {
     localStream = null;
     peerConnection = null;
     currentCallId = null;
+    
+    incomingCallSound.pause(); // 【新規】通話終了時も音を止める
+    incomingCallSound.currentTime = 0;
+
     // UIをリセットしてユーザーリストを再読み込み
     document.getElementById('users-container').innerHTML = '';
     if (currentUser) {
