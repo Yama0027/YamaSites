@@ -35,11 +35,19 @@ const callStatus = document.getElementById('call-status');
 // WebRTC関連のグローバル変数
 let localStream = null;
 let peerConnection = null;
-// Googleの公開STUNサーバーを使用
+
+// STUNサーバーと、ファイアウォールを迂回するための無料公開TURNサーバーを設定
 const configuration = {
-    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }, // STUNサーバー
+        {
+            urls: 'turn:openrelay.metered.ca:80', // 無料の公開TURNサーバー
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
+    ]
 };
-// 注: 簡易化のため、ここでは固定の通話IDを使用しています。
+
 const callId = 'DEMO_CALL_ROOM'; 
 
 // =========================================================
@@ -50,27 +58,17 @@ const callId = 'DEMO_CALL_ROOM';
 signInButton.addEventListener('click', () => {
     const email = emailInput.value;
     const password = passwordInput.value;
-    
     auth.signInWithEmailAndPassword(email, password)
-        .catch((error) => {
-            alert(`ログインエラー: ${error.message}`);
-            console.error("ログインエラー:", error);
-        });
+        .catch((error) => { alert(`ログインエラー: ${error.message}`); });
 });
 
 // 新規登録処理
 signUpButton.addEventListener('click', () => {
     const email = emailInput.value;
     const password = passwordInput.value;
-    
     auth.createUserWithEmailAndPassword(email, password)
-        .then(() => {
-            alert("新規登録が完了しました。自動でログインします。");
-        })
-        .catch((error) => {
-            alert(`新規登録エラー: ${error.message}`);
-            console.error("新規登録エラー:", error);
-        });
+        .then(() => { alert("新規登録完了。自動ログインします。"); })
+        .catch((error) => { alert(`新規登録エラー: ${error.message}`); });
 });
 
 // ログアウト処理
@@ -78,12 +76,11 @@ signOutButton.addEventListener('click', () => {
     auth.signOut();
 });
 
-// 認証状態の監視（ログイン/ログアウト時の画面切り替え）
+// 認証状態の監視
 auth.onAuthStateChanged((user) => {
     if (user) {
-        // ログイン時
         currentUser = user;
-        userInfo.textContent = `ようこそ、${user.email}さん (${user.uid})`;
+        userInfo.textContent = `Login: ${user.email}`;
         signInButton.style.display = 'none';
         signUpButton.style.display = 'none';
         signOutButton.style.display = 'inline';
@@ -92,13 +89,12 @@ auth.onAuthStateChanged((user) => {
         chatArea.style.display = 'block';
         callArea.style.display = 'block';
         
-        startChatListener();   // チャット監視開始
-        getLocalStream();      // カメラ/マイクの準備開始
-        answerCallListener();  // 着信（Answer）監視開始
+        startChatListener();   
+        getLocalStream();      
+        answerCallListener();  
     } else {
-        // ログアウト時
         currentUser = null;
-        userInfo.textContent = 'メールアドレスとパスワードでログインしてください。';
+        userInfo.textContent = 'ログインしてください';
         signInButton.style.display = 'inline';
         signUpButton.style.display = 'inline';
         signOutButton.style.display = 'none';
@@ -118,200 +114,161 @@ const messageInput = document.getElementById('messageInput');
 const sendMessageButton = document.getElementById('sendMessageButton');
 const messagesDiv = document.getElementById('messages');
 
-// メッセージ送信処理
 sendMessageButton.addEventListener('click', () => {
     const messageText = messageInput.value.trim();
     if (messageText && currentUser) {
-        // ユーザー名としてメールアドレスの@以前の部分を使用
-        const userName = currentUser.email.split('@')[0]; 
-        
         db.collection("chats").add({
             uid: currentUser.uid,
-            displayName: userName, 
+            displayName: currentUser.email.split('@')[0], 
             text: messageText,
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        })
-        .then(() => {
-            messageInput.value = ''; // 入力欄をクリア
-        })
-        .catch((error) => console.error("メッセージ送信エラー:", error));
+        }).then(() => { messageInput.value = ''; });
     }
 });
 
-// リアルタイムでメッセージを監視し、画面に表示
 function startChatListener() {
-    db.collection("chats")
-      .orderBy("timestamp", "asc")
-      .limit(50)
+    db.collection("chats").orderBy("timestamp", "asc").limit(50)
       .onSnapshot((snapshot) => {
-        messagesDiv.innerHTML = ''; // メッセージリストをリセット
+        messagesDiv.innerHTML = '';
         snapshot.forEach((doc) => {
             const data = doc.data();
-            const messageElement = document.createElement('p');
-            // タイムスタンプを整形して表示
-            const time = data.timestamp ? new Date(data.timestamp.toDate()).toLocaleTimeString() : '...';
-            messageElement.textContent = `[${time}] ${data.displayName}: ${data.text}`;
-            messagesDiv.appendChild(messageElement);
+            const p = document.createElement('p');
+            p.textContent = `${data.displayName}: ${data.text}`;
+            messagesDiv.appendChild(p);
         });
-        // スクロールを一番下へ
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }, (error) => {
-        console.error("チャット監視エラー:", error);
     });
 }
 
 // =========================================================
-// 4. WebRTCとシグナリング機能
+// 4. WebRTCとシグナリング機能 (修正版)
 // =========================================================
 
-// ユーザーのカメラとマイクを取得
 async function getLocalStream() {
     try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         localVideo.srcObject = localStream;
-        callStatus.textContent = 'ステータス: カメラ/マイク準備OK';
-        startCallButton.disabled = false; // 準備ができたらボタンを有効化
+        callStatus.textContent = 'ステータス: 準備OK';
+        startCallButton.disabled = false;
+        return true;
     } catch (e) {
-        console.error('カメラ/マイクアクセス失敗:', e);
-        callStatus.textContent = 'ステータス: カメラ/マイクアクセス失敗 (要許可)';
-        startCallButton.disabled = true;
+        console.error('カメラエラー:', e);
+        callStatus.textContent = 'ステータス: カメラエラー';
+        return false;
     }
 }
 
-/**
- * RTCPeerConnectionを初期化し、Offer/Answerの交換に必要なイベントリスナーを設定する
- */
+// PeerConnectionのセットアップ
 function setupPeerConnection() {
-    // 既存の接続があれば終了
     if (peerConnection) peerConnection.close();
-
-    // ピア接続の初期化
     peerConnection = new RTCPeerConnection(configuration);
     
-    // 自分のメディアストリームを接続に追加
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-    });
+    if (localStream) {
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    }
 
-    // リモートトラックの受信処理 (相手の映像が届いたら表示)
     peerConnection.ontrack = (event) => {
-        if (remoteVideo.srcObject !== event.streams[0]) {
-            remoteVideo.srcObject = event.streams[0];
-            callStatus.textContent = 'ステータス: 接続完了！通話中';
-        }
+        remoteVideo.srcObject = event.streams[0];
     };
     
+    // 接続状態の監視
+    peerConnection.oniceconnectionstatechange = () => {
+        const state = peerConnection.iceConnectionState;
+        console.log(`ICE State: ${state}`);
+        callStatus.textContent = `ステータス: ${state}`;
+        if (state === 'failed') alert("接続失敗: ネットワーク制限の可能性があります");
+    };
+
     const callDoc = db.collection('calls').doc(callId);
 
-    // ICE Candidateのシグナリング (自分のIP情報をFirestoreに書き込む)
+    // 自分のCandidateを送信
     peerConnection.onicecandidate = (event => {
         if (event.candidate) {
             callDoc.collection('candidates').add(event.candidate.toJSON());
         }
     });
 
-    // 相手からのICE Candidateの待ち受け (Offer側/Answer側の両方で機能)
+    // 相手のCandidateを受信
     callDoc.collection('candidates').onSnapshot(snapshot => {
         snapshot.docChanges().forEach(async (change) => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
-                try {
-                    // リモート記述が設定されていることを確認してから追加
-                    if (peerConnection && peerConnection.remoteDescription) { 
+                if (peerConnection && peerConnection.remoteDescription) { 
+                    try {
                         await peerConnection.addIceCandidate(candidate);
-                    } else {
-                        // ログ出力。エラーではなく、正常にスキップされたことを示します。
-                        console.warn("リモート記述設定前なのでCandidateの追加をスキップしました。");
-                    }
-                } catch (e) {
-                    console.error('ICE Candidate追加失敗:', e);
+                        console.log("Candidate追加成功");
+                    } catch (e) { console.error("Candidate追加エラー", e); }
                 }
             }
         });
     });
 }
 
-// 通話開始ボタンの処理（Offerの作成側）
+// 発信処理 (Offer作成)
 startCallButton.addEventListener('click', async () => {
-    if (!localStream) {
-        alert("カメラとマイクの準備ができていません。");
-        return;
-    }
+    if (!localStream && !await getLocalStream()) return;
     
-    // PeerConnectionの初期設定とイベントリスナーの設定
     setupPeerConnection();
-    
     const callDoc = db.collection('calls').doc(callId);
-    callStatus.textContent = 'ステータス: Offer作成中...';
-
-    // 1. Offer (発信) の作成
+    
+    // 既存のデータをクリア（重要）
+    const candidates = await callDoc.collection('candidates').get();
+    candidates.forEach(doc => doc.ref.delete());
+    
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     
-    // OfferをFirestoreに書き込み
+    // Offer送信（作成者のIDを含めることで、自分が自分のOfferに応答するのを防ぐ）
     await callDoc.set({ 
         offer: { type: offer.type, sdp: offer.sdp },
-        // Answerが残っている可能性を考慮し、クリアしておく
+        offerCreatorUid: currentUser.uid, // <--- これが重要！
         answer: null 
     });
     
-    // 2. Answerの待ち受け (相手からの応答を監視)
-    const unsubscribeAnswer = callDoc.onSnapshot(async (snapshot) => {
+    callStatus.textContent = '発信中...';
+    startCallButton.disabled = true;
+
+    // Answer待ち受け
+    const unsubscribe = callDoc.onSnapshot(async (snapshot) => {
         const data = snapshot.data();
-        if (data && data.answer && peerConnection && !peerConnection.currentRemoteDescription) {
-            // 相手からAnswerが届いたら設定
-            const answerDescription = new RTCSessionDescription(data.answer);
-            await peerConnection.setRemoteDescription(answerDescription);
-            
-            // 接続に成功したらAnswer監視を停止
-            unsubscribeAnswer(); 
-            callStatus.textContent = 'ステータス: Answer受信、接続中...';
+        if (data && data.answer && !peerConnection.currentRemoteDescription) {
+            const answerDesc = new RTCSessionDescription(data.answer);
+            await peerConnection.setRemoteDescription(answerDesc);
+            unsubscribe(); 
+            callStatus.textContent = '接続中...';
         }
     });
-    
-    startCallButton.textContent = '通話開始済み (相手を待機中)';
-    startCallButton.disabled = true;
 });
 
-
-/**
- * 相手のOfferを監視し、Offerを受信したらAnswerを生成して応答する処理
- * これは、通話の着信側として機能します。
- */
-async function answerCallListener() {
+// 着信処理 (Answer作成)
+function answerCallListener() {
     const callDoc = db.collection('calls').doc(callId);
     
-    // Offer/Answerを監視するリスナー
     callDoc.onSnapshot(async (snapshot) => {
         const data = snapshot.data();
-        
-        // Offerがあり、Answerがなく、かつ自分がログインしている場合（着信条件）
-        if (data && data.offer && !data.answer && currentUser) {
+        // Offerがあり、Answerがなく、かつ「自分が作ったOfferではない」場合
+        if (data && data.offer && !data.answer && currentUser && data.offerCreatorUid !== currentUser.uid) {
             
-            callStatus.textContent = 'ステータス: 相手からの着信を検出しました...';
+            console.log("着信を検知しました");
+            if (!localStream && !await getLocalStream()) return;
             
-            // 接続に必要なローカルストリーム（カメラ/マイク）を取得
-            if (!localStream) await getLocalStream();
-            if (!localStream) return;
-            
-            // PeerConnectionの初期設定とイベントリスナーの設定
             setupPeerConnection();
 
-            // 2. Offerを受信したので、リモート記述として設定
-            const offerDescription = new RTCSessionDescription(data.offer);
-            await peerConnection.setRemoteDescription(offerDescription);
+            // Offer設定
+            const offerDesc = new RTCSessionDescription(data.offer);
+            await peerConnection.setRemoteDescription(offerDesc);
             
-            // 3. Answerの作成と送信 (応答)
+            // Answer作成
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
 
-            // AnswerをFirestoreに書き込み
+            // Answer送信
             await callDoc.update({
                 answer: { type: answer.type, sdp: answer.sdp }
             });
-
-            callStatus.textContent = 'ステータス: Answerを送信しました。接続待機中...';
-            document.getElementById('startCallButton').disabled = true;
+            
+            callStatus.textContent = '応答しました。接続中...';
+            startCallButton.disabled = true;
         }
     });
 }
