@@ -4,10 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LINE風 ビデオ通話＆チャット</title>
+    <!-- Tailwind CSSを読み込み -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDKをCDNで読み込み、グローバルな 'firebase' オブジェクトを作成 -->
+    <!-- v8互換のSDKを使用し、グローバル変数としてAPIを直接利用します -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body {
@@ -84,6 +89,7 @@
             border-radius: 8px;
             font-size: 12px;
             transition: background-color 0.2s;
+            cursor: pointer;
         }
         .user-item button:hover {
             background-color: #0056b3;
@@ -128,6 +134,7 @@
             padding: 10px 15px;
             border-radius: 10px;
             transition: background-color 0.2s;
+            cursor: pointer;
         }
         .input-area button:hover {
             background-color: #0056b3;
@@ -224,6 +231,7 @@
             color: white;
             font-size: 24px;
             transition: opacity 0.2s;
+            cursor: pointer;
         }
         .call-controls button:hover {
             opacity: 0.8;
@@ -274,6 +282,7 @@
             font-size: 16px;
             font-weight: bold;
             color: white;
+            cursor: pointer;
         }
         #answerButton {
             background-color: #34c759;
@@ -310,6 +319,7 @@
             margin-top: 10px;
             width: 100%;
             font-weight: bold;
+            cursor: pointer;
         }
         .loading-spinner {
             display: flex;
@@ -342,6 +352,7 @@
     <!-- 認証画面 (未ログイン時) -->
     <div id="auth-status" style="display:none;">
         <h2 class="text-xl font-bold mb-4">サインイン / サインアップ</h2>
+        <!-- デモ用にテストアカウントを事前入力 -->
         <input type="email" id="emailInput" placeholder="メールアドレス" value="test@example.com">
         <input type="password" id="passwordInput" placeholder="パスワード" value="password123">
         <button id="signInButton">サインイン</button>
@@ -413,38 +424,20 @@
             </div>
 
             <!-- 着信音 (ループ再生のため) -->
-            <audio id="incomingCallSound" loop src="https://assets.mixkit.co/sfx/preview/mixkit-analog-phone-ring-2374.mp3" style="display:none;"></audio>
+            <audio id="incomingCallSound" loop src="sound.mp3" style="display:none;"></audio>
         </div>
     </div>
     
 
-    <script type="module">
+    <script>
 // =========================================================
-// 1. 初期設定 (グローバル変数)
+// 1. 初期設定 (グローバル変数とFirebaseサービス)
 // =========================================================
-// ⚠ 注意: ここは実行環境に応じて自動で置き換えられます。
-// Firebase設定とAppIDの取得
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
 
-  // Your web app's Firebase configuration
-  const firebaseConfig = {
-    apiKey: "AIzaSyDjDgy_QanVzmgdUs9t86qfEsTeSTXJnaY",
-    authDomain: "nasuweb-467f9.firebaseapp.com",
-    projectId: "nasuweb-467f9",
-    storageBucket: "nasuweb-467f9.firebasestorage.app",
-    messagingSenderId: "23088520786",
-    appId: "1:23088520786:web:cef756e264b7f64214498b"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-// ログレベル設定 (デバッグ用)
-firebase.firestore.setLogLevel('debug');
-
-
+// グローバル変数
+let firebaseApp;
+let auth;
+let db;
 let currentUser = null;
 let currentCallId = null; 
 let localStream = null;
@@ -452,11 +445,45 @@ let peerConnection = null;
 let currentFacingMode = 'user'; 
 let notificationPermissionGranted = false; 
 
+// Firebase設定とAppIDの取得
+// 環境変数から取得し、未定義の場合はフォールバックする
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+
+// 認証エラー対策のため、firebaseConfigが空の場合はデフォルト値を設定
+if (!firebaseConfig.apiKey) {
+    console.warn("Firebase API Key is missing. Using placeholder. Ensure __firebase_config is correctly provided by the environment.");
+    // 開発環境で動作しない場合のために、ダミーキーを設定 
+    firebaseConfig.apiKey = "AIzaSy_DummyApiKeyForDevelopment"; 
+    firebaseConfig.authDomain = "example.firebaseapp.com";
+    firebaseConfig.projectId = "example-project";
+}
+
+// Firebase初期化 (グローバルな 'firebase' オブジェクトからアクセス)
+try {
+    firebaseApp = firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    
+    // Firestoreの設定を調整 (推奨設定を有効にする)
+    db.settings({
+        // v8互換でのデフォルト設定を明示的に指定
+        ignoreUndefinedProperties: true
+    });
+
+    // デバッグログレベルの設定 (Firestore利用時推奨)
+    firebase.firestore.setLogLevel('debug');
+
+} catch(e) {
+    console.error("Firebase初期化エラー:", e);
+    document.getElementById('loading-spinner').innerHTML = `<p class="text-red-500">Firebaseの初期化に失敗しました。コンソールを確認してください。</p>`;
+}
+
+
 // TURNサーバー設定 (WebRTC接続用)
 const configuration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        // WebRTCの接続を安定させるためのTURNサーバー（リレーサーバー）
         { urls: 'turn:turn.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
     ]
 };
@@ -500,20 +527,26 @@ window.onload = function() {
     signInButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-        auth.signInWithEmailAndPassword(email, password).catch(e => console.error("サインインエラー:", e.message));
+        auth.signInWithEmailAndPassword(email, password).catch(e => {
+            console.error("サインインエラー:", e.message);
+            showAuthError(`サインイン失敗: ${e.code.replace('auth/', '')}`);
+        });
     });
 
     signUpButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-        auth.createUserWithEmailAndPassword(email, password).catch(e => console.error("サインアップエラー:", e.message));
+        auth.createUserWithEmailAndPassword(email, password).catch(e => {
+            console.error("サインアップエラー:", e.message);
+            showAuthError(`サインアップ失敗: ${e.code.replace('auth/', '')}`);
+        });
     });
 
     signOutButton.addEventListener('click', () => {
         if (currentUser) {
-            // ログアウト時にusersコレクションから自分のレコードを削除
-            // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
-            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(currentUser.uid).delete().catch(console.error);
+            // ログアウト時にusersコレクションから自分のレコードを削除 (v8構文)
+            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(currentUser.uid).delete()
+              .catch(console.error);
         }
         auth.signOut();
     });
@@ -529,6 +562,18 @@ window.onload = function() {
     startAuthListener();
 }
 
+// 認証エラーメッセージ表示ヘルパー (alertの代替)
+function showAuthError(message) {
+    // 既存のエラーメッセージを削除
+    document.querySelectorAll('#auth-status .text-red-500').forEach(e => e.remove());
+
+    const errorMsg = document.createElement('p');
+    errorMsg.className = 'text-red-500 text-sm mt-2';
+    errorMsg.textContent = message;
+    authStatusDiv.appendChild(errorMsg);
+    setTimeout(() => errorMsg.remove(), 5000);
+}
+
 
 // =========================================================
 // 3. 認証 & ユーザー管理 & フレンド機能
@@ -541,22 +586,23 @@ function startAuthListener() {
 
         if (user) {
             currentUser = user;
-            document.getElementById('user-info').textContent = user.email;
+            document.getElementById('user-info').textContent = `${user.email.split('@')[0]} (ID: ${user.uid.substring(0, 8)}...)`;
             
             // ログイン済みならメインアプリを表示
             authStatusDiv.style.display = 'none';
             appContainer.style.display = 'flex';
 
-            // 通知権限を要求 (新規追加)
+            // 通知権限を要求
             await requestNotificationPermission(); 
 
-            // 自分の情報をusersコレクションに保存 (オンライン通知代わり)
-            // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
-            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid).set({
+            // 自分の情報をusersコレクションに保存 (オンライン通知代わり, v8構文)
+            const userDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid);
+            await userDocRef.set({
                 email: user.email,
                 uid: user.uid,
+                // ServerTimestampを使用 (v8構文)
                 lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
+            }, { merge: true }).catch(e => console.error("ユーザー情報保存エラー:", e));
 
             startChatListener();   
             startUserListListener(); 
@@ -570,7 +616,7 @@ function startAuthListener() {
     });
 }
 
-// ブラウザ通知権限を要求する関数 (新規追加)
+// ブラウザ通知権限を要求する関数
 async function requestNotificationPermission() {
     if (!('Notification' in window)) {
         console.warn("このブラウザは通知をサポートしていません。");
@@ -599,10 +645,10 @@ async function requestNotificationPermission() {
     }
 }
 
-// ブラウザ通知を表示する関数 (新規追加)
+// ブラウザ通知を表示する関数
 function displayNotification(title, body) {
     if (notificationPermissionGranted) {
-        // ページがアクティブな場合、通知は不要
+        // ビデオオーバーレイが表示中、またはドキュメントがアクティブな場合は通知しない
         if (document.visibilityState === 'visible' && callOverlay.style.display !== 'flex') {
             return;
         }
@@ -613,7 +659,6 @@ function displayNotification(title, body) {
             vibrate: [200, 100, 200]
         });
         
-        // 通知クリック時にウィンドウにフォーカス
         notification.onclick = function() {
             window.focus();
             this.close();
@@ -621,22 +666,24 @@ function displayNotification(title, body) {
     }
 }
 
-// メールアドレスでフレンドを追加する (Firestoreパス修正済み)
+// メールアドレスでフレンドを追加する (v8構文)
 async function addFriendByEmail() {
     const email = friendEmailInput.value.trim();
     if (!email || email === currentUser.email) {
+        showCustomMessage("無効なメールアドレス、または自分自身です。", 'red');
         return;
     }
 
+    // 既存のエラーメッセージを削除
+    document.querySelectorAll('.left-panel .text-red-500').forEach(e => e.remove());
+
     try {
         // 1. そのメールアドレスを持つユーザーを検索
-        // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
         const usersRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users');
-        const usersSnapshot = await usersRef.where('email', '==', email).limit(1).get();
+        const usersSnapshot = await usersRef.where('email', '==', email).get();
 
         if (usersSnapshot.empty) {
-            // ユーザーが見つからない場合はメッセージを出す
-            console.log("ユーザーが見つかりませんでした。");
+            showCustomMessage(`ユーザー ${email} は見つかりませんでした。`, 'red');
             return;
         }
 
@@ -644,36 +691,53 @@ async function addFriendByEmail() {
         const friendUid = friendDoc.id;
 
         // 2. 自分のフレンドリストに追加
-        // 🚨 【Firestore パス修正】friendsコレクションをパブリックデータパスに移動
-        const friendsRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list');
-        await friendsRef.doc(friendUid).set({
+        const friendDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list').doc(friendUid);
+        await friendDocRef.set({
             uid: friendUid,
             email: email,
-            addedAt: firebase.firestore.FieldValue.serverTimestamp()
+            addedAt: firebase.firestore.FieldValue.serverTimestamp() // v8構文
         });
 
-        console.log(`${email} をフレンドに追加しました！`);
+        showCustomMessage(`${email.split('@')[0]} をフレンドに追加しました！`, 'green');
         friendEmailInput.value = '';
 
     } catch (e) {
         console.error("フレンド追加エラー:", e);
+        showCustomMessage("フレンドの追加中にエラーが発生しました。", 'red');
     }
 }
 
-// フレンドリストの監視と表示
+// カスタムメッセージ表示（alertの代替）
+function showCustomMessage(message, type) {
+    const container = document.querySelector('.left-panel');
+    let msgDiv = document.createElement('div');
+    msgDiv.textContent = message;
+    msgDiv.className = `p-2 mt-2 rounded-lg text-sm text-white font-semibold`;
+    msgDiv.style.backgroundColor = type === 'green' ? '#34c759' : '#ff3b30';
+    container.insertBefore(msgDiv, container.querySelector('.users-list'));
+
+    setTimeout(() => {
+        msgDiv.remove();
+    }, 4000);
+}
+
+
+// フレンドリストの監視と表示 (v8構文)
 function startUserListListener() {
     const onlineUsers = {}; 
     let friends = {};       
 
     // 1. オンラインユーザーの監視
-    // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
     const usersRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users');
     usersRef.onSnapshot(onlineSnapshot => {
-        // onlineUsersをリセット
         Object.keys(onlineUsers).forEach(key => delete onlineUsers[key]); 
         onlineSnapshot.forEach(doc => {
             const userData = doc.data();
-            if (userData.uid !== currentUser.uid) {
+            // 最終更新時間が5分以内のユーザーをオンラインと見なす
+            const now = Date.now();
+            const lastSeenTime = userData.lastSeen ? (userData.lastSeen.toDate ? userData.lastSeen.toDate().getTime() : now) : now;
+            
+            if (userData.uid !== currentUser.uid && (now - lastSeenTime) < 300000) {
                 onlineUsers[userData.uid] = userData;
             }
         });
@@ -681,10 +745,8 @@ function startUserListListener() {
     });
 
     // 2. 自分のフレンドリストの監視
-    // 🚨 【Firestore パス修正】friendsコレクションをパブリックデータパスに移動
     const friendsListRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list');
     friendsListRef.onSnapshot(friendSnapshot => {
-        // friendsをリセット
         Object.keys(friends).forEach(key => delete friends[key]);
         friendSnapshot.forEach(doc => {
             const friendData = doc.data();
@@ -712,10 +774,12 @@ function renderFriendList(friends, onlineUsers) {
         
         const div = document.createElement('div');
         div.className = `user-item ${isOnline ? 'online' : 'offline'}`;
+        // onclick関数をグローバルに定義された関数として呼び出す
         div.innerHTML = `
             <div class="user-info-status">
                 <span class="online-dot"></span>
-                <span>${displayData.email.split('@')[0]} ${isOnline ? '(Online)' : '(Offline)'}</span>
+                <span class="font-semibold">${displayData.email.split('@')[0]}</span>
+                <span class="text-xs text-gray-500 ml-2">${isOnline ? '(Online)' : '(Offline)'}</span>
             </div>
             ${isOnline 
                 ? `<button onclick="startCall('${displayData.uid}', '${displayData.email}')">📞 通話</button>`
@@ -726,17 +790,18 @@ function renderFriendList(friends, onlineUsers) {
     });
 }
 
-// フレンド削除
+// フレンド削除 (v8構文)
 window.removeFriend = async (friendUid, friendEmail) => {
-    // confirmの代わりにカスタムモーダルを使用してください
-    const confirmed = window.prompt(`${friendEmail.split('@')[0]} さんをフレンドリストから削除しますか？ (はい/いいえ)`);
-    if (confirmed && confirmed.toLowerCase() === 'はい') {
+    // カスタムモーダル (確認ダイアログ)の代替
+    const confirmed = window.prompt(`${friendEmail.split('@')[0]} さんをフレンドリストから削除しますか？ (「削除」と入力)`);
+    if (confirmed && confirmed.toLowerCase() === '削除') {
         try {
-            // 🚨 【Firestore パス修正】friendsコレクションをパブリックデータパスに移動
-            await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list').doc(friendUid).delete();
-            console.log(`${friendEmail} を削除しました。`);
+            const friendDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('friends').doc(currentUser.uid).collection('list').doc(friendUid);
+            await friendDocRef.delete();
+            showCustomMessage(`${friendEmail.split('@')[0]} を削除しました。`, 'green');
         } catch(e) {
             console.error("フレンド削除エラー:", e);
+            showCustomMessage("フレンド削除中にエラーが発生しました。", 'red');
         }
     }
 }
@@ -746,17 +811,17 @@ window.removeFriend = async (friendUid, friendEmail) => {
 // 4. チャット
 // =========================================================
 
-// チャット送信
+// チャット送信 (v8構文)
 function sendMessage() {
     const input = document.getElementById('messageInput');
     const text = input.value.trim();
     if (text && currentUser) {
-        // 🚨 【Firestore パス修正】chatsコレクションをパブリックデータパスに移動
-        db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chats').add({
+        const chatCollectionRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chats');
+        chatCollectionRef.add({
             text: text,
             uid: currentUser.uid,
             email: currentUser.email,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            timestamp: firebase.firestore.FieldValue.serverTimestamp() // v8構文
         });
         input.value = '';
     }
@@ -765,38 +830,40 @@ function sendMessage() {
 // タイムスタンプを "hh:mm" 形式に整形するヘルパー関数
 function formatTimestamp(timestamp) {
     if (!timestamp) return '';
+    // Firestore TimestampオブジェクトからDateを取得
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
     return `${hours}:${minutes}`;
 }
 
-// チャット受信 (LINE風表示)
+// チャット受信 (LINE風表示) (v8構文)
 function startChatListener() {
     const chatArea = document.getElementById('chat-area');
-    // 🚨 【Firestore パス修正】chatsコレクションをパブリックデータパスに移動
-    db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chats').orderBy('timestamp', 'asc').limit(50).onSnapshot(snapshot => {
+    const chatCollectionRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chats');
+    // クエリ: タイムスタンプで昇順ソートし、最新50件に制限
+    const q = chatCollectionRef.orderBy('timestamp', 'asc').limit(50);
+    
+    q.onSnapshot(snapshot => {
         let newMessages = [];
 
         snapshot.docChanges().forEach(change => {
-            // 新しいメッセージが追加された場合
             if (change.type === 'added') {
                 const data = change.doc.data();
-                // 自分のメッセージではなく、かつ、メッセージ本文がある場合、通知リストに追加
+                // 自分のメッセージ以外を新しいメッセージとして扱う
                 if (data.uid !== currentUser.uid && data.text) {
                     newMessages.push(data);
                 }
             }
         });
 
-        // 差分で追加されたメッセージがあれば通知
+        // 新しいメッセージがあれば通知
         if (newMessages.length > 0) {
             newMessages.forEach(data => {
                 const senderName = data.email ? data.email.split('@')[0] : 'ゲスト';
-                displayNotification(senderName, data.text);
+                displayNotification(`チャット (${senderName})`, data.text);
             });
         }
-
 
         // UIの再描画
         chatArea.innerHTML = '';
@@ -844,6 +911,7 @@ function startChatListener() {
                 console.error("チャットメッセージの表示中にエラーが発生しました:", e, data);
             }
         });
+        // スクロールを最下部に移動
         chatArea.scrollTop = chatArea.scrollHeight;
     });
 }
@@ -858,6 +926,7 @@ async function getLocalStream() {
     try {
         const constraints = {
             audio: true,
+            // カメラ切り替えを可能にするために facingMode を使用
             video: { facingMode: currentFacingMode }
         };
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -871,7 +940,10 @@ async function getLocalStream() {
 
 // 通話開始 (発信)
 window.startCall = async (targetUid, targetEmail) => {
-    if (!await getLocalStream()) return;
+    if (!await getLocalStream()) {
+        showCustomMessage("カメラまたはマイクのアクセスが拒否されました。", 'red');
+        return;
+    }
     
     // 1対1用の通話IDを作成 (辞書順で並べ替え)
     const uids = [currentUser.uid, targetUid].sort();
@@ -881,64 +953,96 @@ window.startCall = async (targetUid, targetEmail) => {
     callOverlay.style.display = 'flex';
     callStatus.textContent = `${targetEmail.split('@')[0]} さんに発信中...`;
     
+    // PeerConnectionのセットアップ
     setupPeerConnection();
     
-    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
-    const callDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+    // Firestoreドキュメント参照 (v8構文)
+    const callDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
     
-    // 過去のゴミデータを掃除
-    const candidates = await callDoc.collection('candidates').get();
-    candidates.forEach(doc => doc.ref.delete());
-    
+    // 過去のゴミデータを掃除 (Candidatesコレクションを削除)
+    const candidatesRef = callDocRef.collection('candidates');
+    // Candidatesコレクション内のドキュメントを削除するためのバッチ処理
+    const candidatesSnapshot = await candidatesRef.get();
+    const batch = db.batch();
+    candidatesSnapshot.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+
     // Offer作成
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     
-    // 発信情報を書き込み 
-    await callDoc.set({
+    // 発信情報を書き込み (v8構文)
+    await callDocRef.set({
         offer: { type: offer.type, sdp: offer.sdp },
         callerUid: currentUser.uid,
         calleeUid: targetUid, 
         answer: null
     });
 
-    // Answer待ち受け
-    const unsubscribe = callDoc.onSnapshot(async (snapshot) => {
+    // Answer待ち受け (v8構文)
+    const unsubscribe = callDocRef.onSnapshot(async (snapshot) => {
         const data = snapshot.data();
+        
+        // Answerが設定され、かつまだリモートDescriptionが設定されていない場合
         if (data && data.answer && !peerConnection.currentRemoteDescription) {
-            const answerDesc = new RTCSessionDescription(data.answer);
-            await peerConnection.setRemoteDescription(answerDesc);
-            callStatus.textContent = '接続しました';
+            try {
+                const answerDesc = new RTCSessionDescription(data.answer);
+                await peerConnection.setRemoteDescription(answerDesc);
+                callStatus.textContent = '接続しました';
+                unsubscribe();
+            } catch (e) {
+                console.error("Answer設定エラー:", e);
+                callStatus.textContent = '接続エラー';
+                // 接続失敗時は通話を終了
+                setTimeout(endCall, 2000); 
+                unsubscribe();
+            }
+        }
+        // 通話データが削除された場合 (相手が拒否/切断)
+        if (!data || !data.offer) {
+            if(callOverlay.style.display === 'flex') {
+                callStatus.textContent = '相手が通話を終了しました';
+                setTimeout(endCall, 2000);
+            }
             unsubscribe();
         }
     });
 };
 
-// 着信監視 (自分宛ての電話だけを拾う)
+// 着信監視 (自分宛ての電話だけを拾う) (v8構文)
 function startIncomingCallListener() {
-    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
-    db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'added' || change.type === 'modified') {
-                const data = change.doc.data();
-                
-                if (data.calleeUid === currentUser.uid && data.offer && !data.answer) {
-                    if (callOverlay.style.display !== 'flex') {
-                        // 着信音と通知
-                        try { incomingCallSound.play(); } catch(e) { console.warn("着信音再生エラー:", e); }
+    const callsCollectionRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls');
+    
+    callsCollectionRef.onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(async change => {
+            const data = change.doc.data();
+
+            if (data.calleeUid === currentUser.uid && data.offer && !data.answer) {
+                // 着信を検出
+                if (change.type === 'added' || (change.type === 'modified' && !incomingCallId)) {
+                    if (callOverlay.style.display !== 'flex' && incomingModal.style.display !== 'flex') {
+                        try { 
+                            incomingCallSound.play(); 
+                        } catch(e) { 
+                            console.warn("着信音再生エラー:", e); 
+                        }
                         
-                        // 🚨 【Firestore パス修正】usersコレクションをパブリックデータパスに移動
-                        db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(data.callerUid).get().then(doc => {
-                            const callerEmail = doc.data()?.email || '不明なユーザー';
-                            const callerName = callerEmail.split('@')[0];
-                            
-                            // ブラウザ通知を表示 (新規追加)
-                            displayNotification(`📞 着信 (${callerName}さん)`, `${callerName}さんから通話がかかってきました。`);
-                            
-                            showIncomingCallModal(change.doc.id, callerName);
-                        });
+                        // 発信者情報を取得
+                        const callerDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(data.callerUid);
+                        const docSnap = await callerDocRef.get();
+                        
+                        const callerEmail = docSnap.exists ? docSnap.data().email : '不明なユーザー';
+                        const callerName = callerEmail.split('@')[0];
+                        
+                        displayNotification(`📞 着信 (${callerName}さん)`, `${callerName}さんから通話がかかってきました。`);
+                        
+                        showIncomingCallModal(change.doc.id, callerName);
                     }
                 }
+            } else if (!data.offer && change.doc.id === incomingCallId) {
+                // 発信者がキャンセルしたことを検出
+                rejectCall(false); // UIを閉じるが、Firestoreは削除しない (既に削除済みのため)
+                showCustomMessage("相手が通話をキャンセルしました。", 'red');
             }
         });
     });
@@ -949,28 +1053,38 @@ let incomingCallId = null;
 function showIncomingCallModal(callId, callerName) {
     incomingCallId = callId;
     document.getElementById('caller-name').textContent = `${callerName} さんから電話です`;
-    incomingModal.style.display = 'flex'; // display: block から flex に変更
+    incomingModal.style.display = 'flex'; 
 }
 
-// 応答ボタン処理
+// 応答ボタン処理 (v8構文)
 async function answerCall() {
     incomingModal.style.display = 'none';
     incomingCallSound.pause(); 
     incomingCallSound.currentTime = 0;
     
     currentCallId = incomingCallId;
+    incomingCallId = null; // 応答したのでリセット
     
-    if (!await getLocalStream()) return;
+    if (!await getLocalStream()) {
+        showCustomMessage("カメラまたはマイクのアクセスが拒否されました。", 'red');
+        return;
+    }
     
     callOverlay.style.display = 'flex';
     callStatus.textContent = '接続中...';
     
     setupPeerConnection();
     
-    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
-    const callDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
-    const doc = await callDoc.get();
-    const data = doc.data();
+    const callDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+    const docSnap = await callDocRef.get();
+    
+    if (!docSnap.exists || !docSnap.data().offer) {
+        console.error("通話データが存在しないか、Offerが見つかりません。");
+        endCall();
+        return;
+    }
+
+    const data = docSnap.data();
     
     // Offer設定
     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
@@ -979,25 +1093,28 @@ async function answerCall() {
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     
-    await callDoc.update({
+    // AnswerをFirestoreに書き込み (v8構文)
+    await callDocRef.set({
         answer: { type: answer.type, sdp: answer.sdp }
-    });
+    }, { merge: true });
 }
 
-// 拒否ボタン処理
-function rejectCall() {
+// 拒否ボタン処理 (v8構文)
+function rejectCall(deleteFirestore = true) {
     incomingModal.style.display = 'none';
     incomingCallSound.pause(); 
     incomingCallSound.currentTime = 0;
 
-    if (incomingCallId) {
-         // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
-         db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(incomingCallId).delete().catch(console.error);
+    if (incomingCallId && deleteFirestore) {
+         // 通話レコードを削除して相手に切断を通知
+         const callDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(incomingCallId);
+         callDocRef.delete().catch(console.error);
     }
+    incomingCallId = null;
 }
 
 
-// PeerConnection共通セットアップ
+// PeerConnection共通セットアップ (v8構文)
 function setupPeerConnection() {
     if (peerConnection) peerConnection.close();
     peerConnection = new RTCPeerConnection(configuration);
@@ -1006,31 +1123,41 @@ function setupPeerConnection() {
         localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
     }
     
+    // リモートトラックを受信
     peerConnection.ontrack = event => {
         remoteVideo.srcObject = event.streams[0];
+        callStatus.textContent = '接続しました';
     };
     
     // ICE Candidate処理
-    // 🚨 【Firestore パス修正】callsコレクションをパブリックデータパスに移動
-    const callDoc = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+    const callDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+    const candidatesCollectionRef = callDocRef.collection('candidates');
     
+    // ICE Candidateを送信
     peerConnection.onicecandidate = event => {
         if (event.candidate) {
-            callDoc.collection('candidates').add(event.candidate.toJSON());
+            // FirestoreにCandidateを追加 (v8構文)
+            candidatesCollectionRef.add(event.candidate.toJSON());
         }
     };
     
-    // ICE Candidateの受信
-    callDoc.collection('candidates').onSnapshot(snapshot => {
+    // ICE Candidateの受信 (v8構文)
+    candidatesCollectionRef.onSnapshot(snapshot => {
         snapshot.docChanges().forEach(async change => {
             if (change.type === 'added') {
                 const candidate = new RTCIceCandidate(change.doc.data());
                 // リモート設定後のみCandidateを追加
                 if (peerConnection && peerConnection.remoteDescription) {
-                    try { await peerConnection.addIceCandidate(candidate); }
-                    catch (e) { console.error("Candidate追加エラー:", e); }
-                } else {
-                     console.log("リモート記述設定前なのでCandidateの追加をスキップしました。");
+                    try { 
+                        // ICE candidateの追加前にピアコネクションの状態をチェック
+                        if (peerConnection.signalingState !== 'closed') {
+                            await peerConnection.addIceCandidate(candidate); 
+                        }
+                    }
+                    catch (e) { 
+                        // エラーログは出すが処理は継続 (通常、既に設定されたCandidateが重複した場合などに発生)
+                        console.error("Candidate追加エラー:", e); 
+                    }
                 }
             }
         });
@@ -1038,8 +1165,12 @@ function setupPeerConnection() {
     
     // 切断監視
     peerConnection.onconnectionstatechange = () => {
-        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
-            endCall();
+        // 'connected'は既にontrackで処理
+        if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
+            if (callOverlay.style.display === 'flex') {
+                callStatus.textContent = '接続が切れました';
+                setTimeout(endCall, 2000);
+            }
         }
     };
 }
@@ -1054,36 +1185,56 @@ async function switchCamera() {
     currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
     
     if (localStream) {
+        // 古いトラックを停止
         localStream.getTracks().forEach(track => track.stop());
     }
     
-    await getLocalStream();
-    
-    // PeerConnectionの映像トラックを差し替える
-    if (peerConnection && localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (sender) {
-            sender.replaceTrack(videoTrack);
+    const success = await getLocalStream();
+
+    if (success) {
+        // PeerConnectionの映像トラックを新しいトラックに差し替える
+        if (peerConnection && localStream) {
+            const videoTrack = localStream.getVideoTracks()[0];
+            const sender = peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
+            if (sender) {
+                // Senderが存在すればトラックを置換
+                sender.replaceTrack(videoTrack);
+            } else {
+                // Senderが存在しない場合は新しいトラックを追加
+                peerConnection.addTrack(videoTrack, localStream);
+            }
         }
     }
 }
 
 // 通話終了
 function endCall() {
+    // 1. WebRTCリソースの解放
     if (peerConnection) peerConnection.close();
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
     }
+    
+    // 2. 通話IDがあれば、Firestoreのレコードを削除して相手に切断を通知 (v8構文)
+    if (currentCallId) {
+        const callDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('calls').doc(currentCallId);
+        callDocRef.delete().catch(console.error);
+    }
+    
+    // 3. UIリセット
     callOverlay.style.display = 'none';
+    incomingModal.style.display = 'none';
+    incomingCallSound.pause(); 
+    incomingCallSound.currentTime = 0;
+    
+    // 4. グローバル変数のリセット
     localStream = null;
     peerConnection = null;
     currentCallId = null;
-    
-    incomingCallSound.pause(); 
-    incomingCallSound.currentTime = 0;
+    incomingCallId = null;
 
-    // UIをリセットしてユーザーリストを再読み込み
+    // 5. ユーザーリストを再読み込み (オンライン状態の更新のため)
+    // リスナーはauth listenerによって起動しているため、再起動は不要だが、UIの即時更新のため強制的に再レンダリングを試みる
     document.getElementById('users-container').innerHTML = '';
     if (currentUser) {
         startUserListListener();
@@ -1093,5 +1244,3 @@ function endCall() {
     </script>
 </body>
 </html>
-
-
