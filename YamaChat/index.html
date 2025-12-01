@@ -349,7 +349,7 @@
     <!-- ローディングスピナー (初期表示) -->
     <div id="loading-spinner" class="loading-spinner">
         <div class="spinner"></div>
-        <p>認証を待機しています...</p>
+        <p>認証を待機しています</p>
     </div>
 
     <!-- 認証画面 (未ログイン時) -->
@@ -466,14 +466,15 @@ const appId = firebaseConfig.projectId;
 // TURNサーバー設定は config.js からグローバル変数 configuration として読み込まれます
 if (typeof configuration === 'undefined') {
     console.error("config.js が読み込まれていないか、TURNサーバー設定が見つかりません。フォールバックの無料TURNサーバーを使用します。");
-    // フォールバックとして、オープンリレーを使用
-    var configuration = { 
+    
+    // フォールバックの STUN サーバー
+    var configuration = {
         iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'turn:turn.openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
+            { urls: "stun:stun.l.google.com:19302" }
         ]
     };
 }
+
 
 
 // Firebase初期化 (グローバルな 'firebase' オブジェクトからアクセス)
@@ -506,37 +507,41 @@ let authStatusDiv, appContainer, loadingSpinner, usersContainer,
     localVideo, remoteVideo, callOverlay, callStatus, incomingModal; 
 
 window.onload = function() {
+    // ===============================
     // DOM要素の取得
-    authStatusDiv = document.getElementById('auth-status');
-    appContainer = document.getElementById('app-container');
-    loadingSpinner = document.getElementById('loading-spinner');
-    usersContainer = document.getElementById('users-container');
+    // ===============================
+    authStatusDiv       = document.getElementById('auth-status');
+    appContainer        = document.getElementById('app-container');
+    loadingSpinner      = document.getElementById('loading-spinner');
+    usersContainer      = document.getElementById('users-container');
 
-    signInButton = document.getElementById('signInButton');
-    signUpButton = document.getElementById('signUpButton');
-    signOutButton = document.getElementById('signOutButton');
-    sendMessageButton = document.getElementById('sendMessageButton');
-    switchCameraButton = document.getElementById('switchCameraButton');
-    hangupButton = document.getElementById('hangupButton');
-    answerButton = document.getElementById('answerButton');
-    rejectButton = document.getElementById('rejectButton');
-    addFriendButton = document.getElementById('addFriendButton'); 
-    friendEmailInput = document.getElementById('friendEmailInput'); 
-    incomingCallSound = document.getElementById('incomingCallSound'); 
-    
-    localVideo = document.getElementById('localVideo');
-    remoteVideo = document.getElementById('remoteVideo');
-    callOverlay = document.getElementById('call-overlay');
-    callStatus = document.getElementById('call-status');
-    incomingModal = document.getElementById('incoming-call-modal');
+    signInButton        = document.getElementById('signInButton');
+    signUpButton        = document.getElementById('signUpButton');
+    signOutButton       = document.getElementById('signOutButton');
+    sendMessageButton   = document.getElementById('sendMessageButton');
+    switchCameraButton  = document.getElementById('switchCameraButton');
+    hangupButton        = document.getElementById('hangupButton');
+    answerButton        = document.getElementById('answerButton');
+    rejectButton        = document.getElementById('rejectButton');
+    addFriendButton     = document.getElementById('addFriendButton'); 
+    friendEmailInput    = document.getElementById('friendEmailInput'); 
+    incomingCallSound   = document.getElementById('incomingCallSound'); 
 
+    localVideo          = document.getElementById('localVideo');
+    remoteVideo         = document.getElementById('remoteVideo');
+    callOverlay         = document.getElementById('call-overlay');
+    callStatus          = document.getElementById('call-status');
+    incomingModal       = document.getElementById('incoming-call-modal');
 
-    // UIイベントリスナーの設定
+    // ===============================
+    // イベントリスナー設定
+    // ===============================
+
+    // サインイン
     signInButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-        
-        // 入力チェック
+
         if (!email || !password) {
             showAuthError("メールアドレスとパスワードを入力してください。");
             return;
@@ -549,11 +554,11 @@ window.onload = function() {
             });
     });
 
+    // サインアップ
     signUpButton.addEventListener('click', () => {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
-        
-        // 入力チェックとパスワード長チェック
+
         if (!email || !password) {
             showAuthError("メールアドレスとパスワードを入力してください。");
             return;
@@ -565,7 +570,6 @@ window.onload = function() {
 
         auth.createUserWithEmailAndPassword(email, password)
             .then(() => {
-                // サインアップ成功後、Firebaseが自動的にサインイン状態にするため、特に処理は不要だが、成功メッセージを表示
                 showAuthError("サインアップに成功しました！自動的にログインします。", "green");
             })
             .catch(e => {
@@ -574,29 +578,29 @@ window.onload = function() {
             });
     });
 
+    // サインアウト
     signOutButton.addEventListener('click', () => {
         if (currentUser) {
-            // ログアウト時にusersコレクションから自分のレコードを削除 (v8構文)
-            db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(currentUser.uid).delete()
-              .catch(console.error);
+            db.collection("users").doc(currentUser.uid).delete()
+                .catch(console.error);
         }
         auth.signOut();
     });
 
+    // その他ボタン
     sendMessageButton.addEventListener('click', sendMessage);
-    switchCameraButton.addEventListener('click', switchCamera); 
-    hangupButton.addEventListener('click', endCall); 
-    answerButton.addEventListener('click', answerCall); 
-    rejectButton.addEventListener('click', rejectCall); 
-    addFriendButton.addEventListener('click', addFriendByEmail); 
+    switchCameraButton.addEventListener('click', switchCamera);
+    hangupButton.addEventListener('click', endCall);
+    answerButton.addEventListener('click', answerCall);
+    rejectButton.addEventListener('click', rejectCall);
+    addFriendButton.addEventListener('click', addFriendByEmail);
 
-    // Firebase認証状態の監視を開始
+    // Firebase認証状態の監視
     startAuthListener();
 }
 
-// 認証エラーメッセージ表示ヘルパー (alertの代替)
+// 認証エラーメッセージ表示ヘルパー
 function showAuthError(message, type = "red") {
-    // 既存のエラーメッセージを削除
     document.querySelectorAll('#auth-status .auth-message').forEach(e => e.remove());
 
     const errorMsg = document.createElement('p');
@@ -604,6 +608,7 @@ function showAuthError(message, type = "red") {
     errorMsg.style.color = type === 'green' ? '#34c759' : '#ff3b30';
     errorMsg.textContent = message;
     authStatusDiv.appendChild(errorMsg);
+
     setTimeout(() => errorMsg.remove(), 5000);
 }
 
@@ -630,13 +635,15 @@ function startAuthListener() {
             await requestNotificationPermission(); 
 
             // 自分の情報をusersコレクションに保存 (オンライン通知代わり, v8構文)
-            const userDocRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('users').doc(user.uid);
-            await userDocRef.set({
-                email: user.email,
-                uid: user.uid,
-                // ServerTimestampを使用 (v8構文)
-                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true }).catch(e => console.error("ユーザー情報保存エラー:", e));
+            const userDocRef = db.collection("users").doc(user.uid);
+
+await userDocRef.set({
+    email: user.email,
+    uid: user.uid,
+    lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+    online: true
+}, { merge: true });
+
 
             startChatListener();   
             startUserListListener(); 
@@ -1279,6 +1286,7 @@ function endCall() {
     </script>
 </body>
 </html>
+
 
 
 
