@@ -12,6 +12,7 @@ const firebaseConfig = {
   appId: "1:23088520786:web:cef756e264b7f64214498b"
 };
 
+// グローバル変数
 let auth, db;
 let currentUser = null;
 let currentCallId = null;
@@ -20,6 +21,7 @@ let peerConnection = null;
 let currentFacingMode = 'user';
 let notificationPermissionGranted = false;
 let incomingCallId = null;
+let chatNotificationsEnabled = true; // チャット通知の設定
 
 // WebRTC設定
 const configuration = {
@@ -60,11 +62,15 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('answerButton').addEventListener('click', answerCall);
     document.getElementById('rejectButton').addEventListener('click', () => rejectCall(true));
     document.getElementById('addFriendButton').addEventListener('click', addFriendByEmail);
+    document.getElementById('chatNotificationToggle').addEventListener('change', handleNotificationToggle);
     
     // Enterキーでメッセージ送信
     document.getElementById('messageInput').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
+
+    // 保存された通知設定を読み込む
+    loadNotificationSettings();
 
     // 認証状態の監視を開始
     startAuthListener();
@@ -186,22 +192,72 @@ async function requestNotificationPermission() {
         try {
             const permission = await Notification.requestPermission();
             notificationPermissionGranted = (permission === 'granted');
+            
+            if (notificationPermissionGranted) {
+                showCustomMessage("通知が有効になりました 🔔", 'green');
+            }
         } catch (error) {
             console.error("通知権限エラー:", error);
         }
     }
 }
 
-function displayNotification(title, body) {
+function displayNotification(title, body, type = 'chat') {
+    // チャット通知の場合は設定を確認
+    if (type === 'chat' && !chatNotificationsEnabled) {
+        return;
+    }
+    
+    // 通話通知は常に表示
     if (notificationPermissionGranted && document.visibilityState !== 'visible') {
         const notification = new Notification(title, {
             body: body,
-            icon: 'https://placehold.co/64x64/00c300/ffffff?text=L'
+            icon: 'https://placehold.co/64x64/00c300/ffffff?text=L',
+            badge: 'https://placehold.co/64x64/00c300/ffffff?text=L',
+            tag: type === 'chat' ? 'chat-notification' : 'call-notification',
+            requireInteraction: type === 'call' // 通話通知は手動で閉じる必要がある
         });
+        
         notification.onclick = () => {
             window.focus();
             notification.close();
         };
+        
+        // 音を鳴らす（チャット通知のみ）
+        if (type === 'chat') {
+            playNotificationSound();
+        }
+    }
+}
+
+function playNotificationSound() {
+    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGGe77eedSw8NUKfj8LZjHAY4kdfzzHksBS+EzvHahDUHFmK57OmhUBALTKHe8bt1KAQocMbv2pA/CRVitu3r');
+    audio.volume = 0.3;
+    audio.play().catch(e => console.log('通知音の再生に失敗:', e));
+}
+
+function handleNotificationToggle(event) {
+    chatNotificationsEnabled = event.target.checked;
+    
+    // 設定を保存
+    localStorage.setItem('chatNotificationsEnabled', chatNotificationsEnabled);
+    
+    if (chatNotificationsEnabled) {
+        showCustomMessage("チャット通知をオンにしました 🔔", 'green');
+        // 通知権限がない場合は要求
+        if (!notificationPermissionGranted) {
+            requestNotificationPermission();
+        }
+    } else {
+        showCustomMessage("チャット通知をオフにしました 🔕", 'red');
+    }
+}
+
+function loadNotificationSettings() {
+    const saved = localStorage.getItem('chatNotificationsEnabled');
+    if (saved !== null) {
+        chatNotificationsEnabled = saved === 'true';
+        document.getElementById('chatNotificationToggle').checked = chatNotificationsEnabled;
     }
 }
 
@@ -371,10 +427,11 @@ function startChatListener() {
                 }
             });
 
-            if (newMessages.length > 0) {
+            // 新しいメッセージがあれば通知
+            if (newMessages.length > 0 && chatNotificationsEnabled) {
                 newMessages.forEach(data => {
                     const senderName = data.email ? data.email.split('@')[0] : 'ゲスト';
-                    displayNotification(`チャット (${senderName})`, data.text);
+                    displayNotification(`💬 ${senderName}`, data.text, 'chat');
                 });
             }
 
@@ -545,7 +602,7 @@ function startIncomingCallListener() {
                         const callerEmail = callerDoc.exists ? callerDoc.data().email : '不明';
                         const callerName = callerEmail.split('@')[0];
                         
-                        displayNotification(`📞 着信 (${callerName})`, `${callerName}さんから通話`);
+                        displayNotification(`📞 着信 (${callerName})`, `${callerName}さんから通話`, 'call');
                         showIncomingCallModal(change.doc.id, callerName);
                     }
                 }
