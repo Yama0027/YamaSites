@@ -179,6 +179,12 @@ input:checked + .toggle-slider:before {
     padding: 10px 20px;
     border-top: 1px solid #eee;
     background-color: white;
+    flex-direction: column;
+}
+
+.input-controls {
+    display: flex;
+    gap: 10px;
 }
 
 .input-area input {
@@ -186,7 +192,6 @@ input:checked + .toggle-slider:before {
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 10px;
-    margin-right: 10px;
     outline: none;
 }
 
@@ -202,6 +207,51 @@ input:checked + .toggle-slider:before {
 
 .input-area button:hover {
     background-color: #0056b3;
+}
+
+.file-upload-btn {
+    background-color: #5856d6;
+    padding: 10px 15px;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.file-upload-btn:hover {
+    background-color: #4745b8;
+}
+
+.typing-indicator {
+    padding: 5px 15px;
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    min-height: 20px;
+}
+
+.typing-indicator .dots {
+    display: inline-block;
+}
+
+.typing-indicator .dots span {
+    animation: blink 1.4s infinite;
+    animation-fill-mode: both;
+}
+
+.typing-indicator .dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.typing-indicator .dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+@keyframes blink {
+    0%, 80%, 100% { opacity: 0; }
+    40% { opacity: 1; }
 }
 
 /* チャットメッセージのスタイル (LINE風) */
