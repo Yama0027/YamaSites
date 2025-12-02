@@ -12,7 +12,6 @@ const firebaseConfig = {
   appId: "1:23088520786:web:cef756e264b7f64214498b"
 };
 
-// グローバル変数
 let auth, db;
 let currentUser = null;
 let currentCallId = null;
@@ -62,10 +61,9 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('answerButton').addEventListener('click', answerCall);
     document.getElementById('rejectButton').addEventListener('click', () => rejectCall(true));
     document.getElementById('addFriendButton').addEventListener('click', addFriendByEmail);
-    document.getElementById('chatNotificationToggle').addEventListener('change', handleNotificationToggle);
     
     // Enterキーでメッセージ送信
-    document.getElementById('messageInput').addEventListener('keypress', (e) => {
+    document.getElementById('messageInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') sendMessage();
     });
 
