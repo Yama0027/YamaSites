@@ -12,7 +12,6 @@ const firebaseConfig = {
   appId: "1:23088520786:web:cef756e264b7f64214498b"
 };
 
-// グローバル変数
 let auth, db;
 let currentUser = null;
 let currentCallId = null;
@@ -450,6 +449,8 @@ async function getLocalStream() {
 }
 
 window.startCall = async (targetUid, targetEmail) => {
+    console.log('通話開始:', targetUid);
+    
     if (!await getLocalStream()) {
         showCustomMessage("カメラ/マイクのアクセスが拒否されました", 'red');
         return;
@@ -457,6 +458,7 @@ window.startCall = async (targetUid, targetEmail) => {
     
     const uids = [currentUser.uid, targetUid].sort();
     currentCallId = `${uids[0]}_${uids[1]}`;
+    console.log('通話ID:', currentCallId);
     
     document.getElementById('call-overlay').style.display = 'flex';
     document.getElementById('call-status').textContent = `${targetEmail.split('@')[0]} に発信中...`;
@@ -466,38 +468,54 @@ window.startCall = async (targetUid, targetEmail) => {
     const callDocRef = db.collection('calls').doc(currentCallId);
     
     // 古いcandidatesを削除
-    const candidatesSnapshot = await callDocRef.collection('candidates').get();
-    const batch = db.batch();
-    candidatesSnapshot.forEach(doc => batch.delete(doc.ref));
-    await batch.commit();
+    try {
+        const candidatesSnapshot = await callDocRef.collection('candidates').get();
+        const batch = db.batch();
+        candidatesSnapshot.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+        console.log('古いCandidatesを削除');
+    } catch(e) {
+        console.error("Candidates削除エラー:", e);
+    }
 
-    const offer = await peerConnection.createOffer();
+    // Offer作成
+    const offer = await peerConnection.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+    });
+    console.log('Offer作成:', offer);
+    
     await peerConnection.setLocalDescription(offer);
+    console.log('LocalDescription設定完了');
     
     await callDocRef.set({
         offer: { type: offer.type, sdp: offer.sdp },
         callerUid: currentUser.uid,
         calleeUid: targetUid,
-        answer: null
+        answer: null,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
+    console.log('Offerを送信');
 
     const unsubscribe = callDocRef.onSnapshot(async (snapshot) => {
         const data = snapshot.data();
         
         if (data && data.answer && !peerConnection.currentRemoteDescription) {
+            console.log('Answer受信:', data.answer);
             try {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-                document.getElementById('call-status').textContent = '接続しました';
-                unsubscribe();
+                console.log('RemoteDescription設定完了');
+                document.getElementById('call-status').textContent = '接続中...';
             } catch (e) {
                 console.error("Answer設定エラー:", e);
+                document.getElementById('call-status').textContent = '接続エラー';
                 setTimeout(endCall, 2000);
-                unsubscribe();
             }
         }
         
         if (!data || !data.offer) {
             if(document.getElementById('call-overlay').style.display === 'flex') {
+                console.log('相手が通話を終了');
                 document.getElementById('call-status').textContent = '相手が通話を終了しました';
                 setTimeout(endCall, 2000);
             }
@@ -546,6 +564,8 @@ function showIncomingCallModal(callId, callerName) {
 }
 
 async function answerCall() {
+    console.log('着信応答:', incomingCallId);
+    
     document.getElementById('incoming-call-modal').style.display = 'none';
     const incomingCallSound = document.getElementById('incomingCallSound');
     incomingCallSound.pause();
@@ -574,14 +594,27 @@ async function answerCall() {
     }
 
     const data = docSnap.data();
+    console.log('Offer受信:', data.offer);
+    
+    // RemoteDescriptionを設定
     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+    console.log('RemoteDescription設定完了');
     
-    const answer = await peerConnection.createAnswer();
+    // Answer作成
+    const answer = await peerConnection.createAnswer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true
+    });
+    console.log('Answer作成:', answer);
+    
     await peerConnection.setLocalDescription(answer);
+    console.log('LocalDescription設定完了');
     
+    // Answerを送信
     await callDocRef.set({
         answer: { type: answer.type, sdp: answer.sdp }
     }, { merge: true });
+    console.log('Answerを送信');
 }
 
 function rejectCall(deleteFirestore = true) {
@@ -601,11 +634,19 @@ function setupPeerConnection() {
     peerConnection = new RTCPeerConnection(configuration);
     
     if (localStream) {
-        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+        localStream.getTracks().forEach(track => {
+            console.log('ローカルトラック追加:', track.kind);
+            peerConnection.addTrack(track, localStream);
+        });
     }
     
     peerConnection.ontrack = event => {
-        document.getElementById('remoteVideo').srcObject = event.streams[0];
+        console.log('リモートトラック受信:', event.track.kind);
+        const remoteVideo = document.getElementById('remoteVideo');
+        if (remoteVideo.srcObject !== event.streams[0]) {
+            remoteVideo.srcObject = event.streams[0];
+            console.log('リモートビデオ設定完了');
+        }
         document.getElementById('call-status').textContent = '接続しました';
     };
     
@@ -614,18 +655,30 @@ function setupPeerConnection() {
     
     peerConnection.onicecandidate = event => {
         if (event.candidate) {
-            candidatesRef.add(event.candidate.toJSON());
+            console.log('ICE Candidate送信');
+            candidatesRef.add(event.candidate.toJSON()).catch(e => {
+                console.error("Candidate送信エラー:", e);
+            });
         }
+    };
+    
+    peerConnection.oniceconnectionstatechange = () => {
+        console.log('ICE接続状態:', peerConnection.iceConnectionState);
+        document.getElementById('call-status').textContent = 
+            `ICE状態: ${peerConnection.iceConnectionState}`;
     };
     
     candidatesRef.onSnapshot(snapshot => {
         snapshot.docChanges().forEach(async change => {
             if (change.type === 'added') {
-                const candidate = new RTCIceCandidate(change.doc.data());
-                if (peerConnection && peerConnection.remoteDescription && 
-                    peerConnection.signalingState !== 'closed') {
+                const candidateData = change.doc.data();
+                console.log('ICE Candidate受信:', candidateData);
+                
+                if (peerConnection && peerConnection.signalingState !== 'closed') {
                     try {
+                        const candidate = new RTCIceCandidate(candidateData);
                         await peerConnection.addIceCandidate(candidate);
+                        console.log('Candidate追加成功');
                     } catch (e) {
                         console.error("Candidate追加エラー:", e);
                     }
@@ -635,6 +688,7 @@ function setupPeerConnection() {
     });
     
     peerConnection.onconnectionstatechange = () => {
+        console.log('接続状態:', peerConnection.connectionState);
         if (['disconnected', 'failed', 'closed'].includes(peerConnection.connectionState)) {
             if (document.getElementById('call-overlay').style.display === 'flex') {
                 document.getElementById('call-status').textContent = '接続が切れました';
