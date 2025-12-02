@@ -13,7 +13,7 @@ const firebaseConfig = {
 };
 
 // グローバル変数
-let auth, db, storage;
+let auth, db;
 let currentUser = null;
 let currentCallId = null;
 let localStream = null;
@@ -36,7 +36,6 @@ try {
     firebase.initializeApp(firebaseConfig);
     auth = firebase.auth();
     db = firebase.firestore();
-    storage = firebase.storage();
     console.log("Firebase初期化成功");
 } catch(e) {
     console.error("Firebase初期化エラー:", e);
@@ -420,79 +419,62 @@ function handleFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
     
-    // ファイルサイズチェック (5MB制限)
-    if (file.size > 5 * 1024 * 1024) {
-        showCustomMessage("ファイルサイズは5MB以下にしてください", 'red');
+    // 画像ファイルのみ許可
+    if (!file.type.startsWith('image/')) {
+        showCustomMessage("画像ファイルのみ送信できます", 'red');
+        event.target.value = '';
         return;
     }
     
-    // 画像の場合
-    if (file.type.startsWith('image/')) {
-        sendImageMessage(file);
-    } else {
-        sendFileMessage(file);
+    // ファイルサイズチェック (100KB制限)
+    if (file.size > 100 * 1024) {
+        showCustomMessage("画像サイズは100KB以下にしてください", 'red');
+        event.target.value = '';
+        return;
     }
     
-    // inputをリセット
+    sendImageMessage(file);
     event.target.value = '';
 }
 
-// 画像メッセージ送信
+// 画像メッセージ送信（Base64）
 async function sendImageMessage(file) {
-    showCustomMessage("画像をアップロード中...", 'green');
+    showCustomMessage("画像を送信中...", 'green');
     
     try {
-        const storageRef = storage.ref();
-        const fileRef = storageRef.child(`images/${Date.now()}_${file.name}`);
+        // FileReaderでBase64に変換
+        const reader = new FileReader();
         
-        await fileRef.put(file);
-        const url = await fileRef.getDownloadURL();
+        reader.onload = async function(e) {
+            const base64Image = e.target.result;
+            
+            await db.collection('chats').add({
+                text: '',
+                imageData: base64Image,
+                fileName: file.name,
+                uid: currentUser.uid,
+                email: currentUser.email,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                type: 'image'
+            });
+            
+            showCustomMessage("画像を送信しました", 'green');
+        };
         
-        await db.collection('chats').add({
-            text: '',
-            imageUrl: url,
-            fileName: file.name,
-            uid: currentUser.uid,
-            email: currentUser.email,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            type: 'image'
-        });
+        reader.onerror = function() {
+            console.error("画像読み込みエラー");
+            showCustomMessage("画像の読み込みに失敗しました", 'red');
+        };
         
-        showCustomMessage("画像を送信しました", 'green');
+        reader.readAsDataURL(file);
+        
     } catch (error) {
-        console.error("画像アップロードエラー:", error);
+        console.error("画像送信エラー:", error);
         showCustomMessage("画像の送信に失敗しました", 'red');
     }
 }
 
-// ファイルメッセージ送信
-async function sendFileMessage(file) {
-    showCustomMessage("ファイルをアップロード中...", 'green');
-    
-    try {
-        const storageRef = storage.ref();
-        const fileRef = storageRef.child(`files/${Date.now()}_${file.name}`);
-        
-        await fileRef.put(file);
-        const url = await fileRef.getDownloadURL();
-        
-        await db.collection('chats').add({
-            text: '',
-            fileUrl: url,
-            fileName: file.name,
-            fileSize: file.size,
-            uid: currentUser.uid,
-            email: currentUser.email,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            type: 'file'
-        });
-        
-        showCustomMessage("ファイルを送信しました", 'green');
-    } catch (error) {
-        console.error("ファイルアップロードエラー:", error);
-        showCustomMessage("ファイルの送信に失敗しました", 'red');
-    }
-}
+// ファイルメッセージ送信は削除（Base64では非効率なため）
 
 // 入力中インジケーター
 function handleTyping() {
@@ -577,7 +559,7 @@ function startChatListener() {
             chatArea.innerHTML = '';
             snapshot.forEach(doc => {
                 const data = doc.data();
-                if (!data.text && !data.imageUrl && !data.fileUrl) return;
+                if (!data.text && !data.imageData) return;
 
                 const isMe = data.uid === currentUser.uid;
                 const userName = data.email ? data.email.split('@')[0] : 'ゲスト';
@@ -605,25 +587,19 @@ function startChatListener() {
                     msgDiv.appendChild(document.createTextNode(data.text));
                 }
                 
-                // 画像メッセージ
-                if (data.imageUrl) {
+                // 画像メッセージ（Base64）
+                if (data.imageData) {
                     const img = document.createElement('img');
-                    img.src = data.imageUrl;
+                    img.src = data.imageData;
                     img.alt = data.fileName || '画像';
-                    img.onclick = () => window.open(data.imageUrl, '_blank');
+                    img.style.maxWidth = '200px';
+                    img.style.cursor = 'pointer';
+                    img.onclick = function() {
+                        // 画像を新しいウィンドウで開く
+                        const w = window.open('');
+                        w.document.write(`<img src="${data.imageData}" style="max-width:100%;">`);
+                    };
                     msgDiv.appendChild(img);
-                }
-                
-                // ファイルメッセージ
-                if (data.fileUrl) {
-                    const fileDiv = document.createElement('div');
-                    fileDiv.className = 'file-attachment';
-                    fileDiv.innerHTML = `
-                        📄 ${data.fileName || 'ファイル'}
-                        ${data.fileSize ? `(${formatFileSize(data.fileSize)})` : ''}
-                    `;
-                    fileDiv.onclick = () => window.open(data.fileUrl, '_blank');
-                    msgDiv.appendChild(fileDiv);
                 }
                 
                 if (isMe) {
@@ -641,11 +617,7 @@ function startChatListener() {
         });
 }
 
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
+// formatFileSize関数は削除（使わないため）
 
 function formatTimestamp(timestamp) {
     if (!timestamp) return '';
