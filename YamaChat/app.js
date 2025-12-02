@@ -22,7 +22,6 @@ let currentFacingMode = 'user';
 let notificationPermissionGranted = false;
 let incomingCallId = null;
 let chatNotificationsEnabled = true; // チャット通知の設定
-let typingTimeout = null; // 入力中タイムアウト
 
 // WebRTC設定
 const configuration = {
@@ -165,7 +164,6 @@ function startAuthListener() {
             startChatListener();
             startUserListListener();
             startIncomingCallListener();
-            startTypingListener(); // 入力中インジケーターの監視開始
         } else {
             currentUser = null;
             document.getElementById('auth-status').style.display = 'block';
@@ -404,130 +402,10 @@ function sendMessage() {
             text: text,
             uid: currentUser.uid,
             email: currentUser.email,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-            type: 'text'
-        });
-        input.value = '';
-        
-        // 入力中状態をクリア
-        clearTypingStatus();
-    }
-}
-
-// ファイル選択処理
-function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    // 画像ファイルのみ許可
-    if (!file.type.startsWith('image/')) {
-        showCustomMessage("画像ファイルのみ送信できます", 'red');
-        event.target.value = '';
-        return;
-    }
-    
-    // ファイルサイズチェック (100KB制限)
-    if (file.size > 100 * 1024) {
-        showCustomMessage("画像サイズは100KB以下にしてください", 'red');
-        event.target.value = '';
-        return;
-    }
-    
-    sendImageMessage(file);
-    event.target.value = '';
-}
-
-// 画像メッセージ送信（Base64）
-async function sendImageMessage(file) {
-    showCustomMessage("画像を送信中...", 'green');
-    
-    try {
-        // FileReaderでBase64に変換
-        const reader = new FileReader();
-        
-        reader.onload = async function(e) {
-            const base64Image = e.target.result;
-            
-            await db.collection('chats').add({
-                text: '',
-                imageData: base64Image,
-                fileName: file.name,
-                uid: currentUser.uid,
-                email: currentUser.email,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-                type: 'image'
-            });
-            
-            showCustomMessage("画像を送信しました", 'green');
-        };
-        
-        reader.onerror = function() {
-            console.error("画像読み込みエラー");
-            showCustomMessage("画像の読み込みに失敗しました", 'red');
-        };
-        
-        reader.readAsDataURL(file);
-        
-    } catch (error) {
-        console.error("画像送信エラー:", error);
-        showCustomMessage("画像の送信に失敗しました", 'red');
-    }
-}
-
-// ファイルメッセージ送信は削除（Base64では非効率なため）
-
-// 入力中インジケーター
-function handleTyping() {
-    if (!currentUser) return;
-    
-    // 入力中状態を更新
-    db.collection('typing').doc(currentUser.uid).set({
-        isTyping: true,
-        email: currentUser.email,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-    // 既存のタイムアウトをクリア
-    if (typingTimeout) {
-        clearTimeout(typingTimeout);
-    }
-    
-    // 3秒後に入力中状態をクリア
-    typingTimeout = setTimeout(() => {
-        clearTypingStatus();
-    }, 3000);
-}
-
-function clearTypingStatus() {
-    if (currentUser) {
-        db.collection('typing').doc(currentUser.uid).set({
-            isTyping: false,
-            email: currentUser.email,
             timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
+        input.value = '';
     }
-}
-
-// 入力中状態の監視
-function startTypingListener() {
-    db.collection('typing').onSnapshot(snapshot => {
-        const typingUsers = [];
-        
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.isTyping && doc.id !== currentUser.uid) {
-                const userName = data.email ? data.email.split('@')[0] : '誰か';
-                typingUsers.push(userName);
-            }
-        });
-        
-        const indicator = document.getElementById('typing-indicator');
-        if (typingUsers.length > 0) {
-            indicator.innerHTML = `${typingUsers.join(', ')} が入力中<span class="dots"><span>.</span><span>.</span><span>.</span></span>`;
-        } else {
-            indicator.innerHTML = '';
-        }
-    });
 }
 
 function startChatListener() {
@@ -559,7 +437,7 @@ function startChatListener() {
             chatArea.innerHTML = '';
             snapshot.forEach(doc => {
                 const data = doc.data();
-                if (!data.text && !data.imageData) return;
+                if (!data.text) return;
 
                 const isMe = data.uid === currentUser.uid;
                 const userName = data.email ? data.email.split('@')[0] : 'ゲスト';
@@ -582,25 +460,7 @@ function startChatListener() {
                     msgDiv.appendChild(nameSpan);
                 }
                 
-                // テキストメッセージ
-                if (data.text) {
-                    msgDiv.appendChild(document.createTextNode(data.text));
-                }
-                
-                // 画像メッセージ（Base64）
-                if (data.imageData) {
-                    const img = document.createElement('img');
-                    img.src = data.imageData;
-                    img.alt = data.fileName || '画像';
-                    img.style.maxWidth = '200px';
-                    img.style.cursor = 'pointer';
-                    img.onclick = function() {
-                        // 画像を新しいウィンドウで開く
-                        const w = window.open('');
-                        w.document.write(`<img src="${data.imageData}" style="max-width:100%;">`);
-                    };
-                    msgDiv.appendChild(img);
-                }
+                msgDiv.appendChild(document.createTextNode(data.text));
                 
                 if (isMe) {
                     rowDiv.appendChild(timeSpan);
@@ -616,8 +476,6 @@ function startChatListener() {
             chatArea.scrollTop = chatArea.scrollHeight;
         });
 }
-
-// formatFileSize関数は削除（使わないため）
 
 function formatTimestamp(timestamp) {
     if (!timestamp) return '';
