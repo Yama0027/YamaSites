@@ -40,6 +40,14 @@
                 <p id="user-info" class="font-bold text-lg mb-1"></p>
                 <button id="signOutButton" class="text-sm text-red-500 hover:text-red-700 transition">ログアウト</button>
 
+                <div class="notification-toggle">
+                    <span>💬 チャット通知</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chatNotificationToggle" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
                 <div class="mt-4 flex gap-2">
                     <input type="email" id="friendEmailInput" placeholder="フレンドのメールアドレス" class="p-2 border rounded-lg flex-grow text-sm">
                     <button id="addFriendButton" class="text-sm px-3 py-1 bg-green-500 hover:bg-green-600 rounded-lg">追加</button>
@@ -62,8 +70,15 @@
 
             <!-- 入力エリア -->
             <div class="input-area">
-                <input type="text" id="messageInput" placeholder="メッセージを入力...">
-                <button id="sendMessageButton">送信</button>
+                <div class="typing-indicator" id="typing-indicator"></div>
+                <div class="input-controls">
+                    <input type="text" id="messageInput" placeholder="メッセージを入力...">
+                    <label for="fileInput" class="file-upload-btn">
+                        📎
+                    </label>
+                    <input type="file" id="fileInput" accept="image/*,.pdf,.doc,.docx,.txt" style="display: none;">
+                    <button id="sendMessageButton">送信</button>
+                </div>
             </div>
             
             <!-- ビデオ通話オーバーレイ -->
