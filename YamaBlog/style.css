@@ -1,0 +1,183 @@
+/* リセット */
+body, h1, h2, p, ul, li {
+    margin: 0;
+    padding: 0;
+}
+ul {
+    list-style: none;
+}
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+/* 基本レイアウト */
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    line-height: 1.6;
+    background-color: #f8f8f8;
+    color: #333;
+}
+
+.container {
+    width: 90%;
+    max-width: 960px;
+    margin: 0 auto;
+}
+
+/* ヘッダー */
+header {
+    background-color: #34495e; /* 濃い青/グレー */
+    color: white;
+    padding: 20px 0;
+    margin-bottom: 30px;
+}
+
+header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 a {
+    font-size: 2em;
+    font-weight: bold;
+}
+
+header nav ul {
+    display: flex;
+}
+
+header nav ul li {
+    margin-left: 20px;
+}
+
+header nav a:hover {
+    color: #ecf0f1; /* 少し明るい色 */
+}
+
+/* メインコンテンツ */
+main h2 {
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    color: #2c3e50;
+}
+
+/* 記事カード */
+.post-card {
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    transition: box-shadow 0.3s ease;
+}
+
+.post-card:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.post-card h3 a {
+    color: #2980b9; /* 青色 */
+    font-size: 1.5em;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.post-card .date {
+    display: block;
+    color: #7f8c8d;
+    font-size: 0.9em;
+    margin-bottom: 10px;
+}
+
+/* フッター */
+footer {
+    background-color: #333;
+    color: white;
+    text-align: center;
+    padding: 15px 0;
+    margin-top: 50px;
+    font-size: 0.9em;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 600px) {
+    header .container {
+        flex-direction: column;
+        text-align: center;
+    }
+    header nav ul {
+        margin-top: 10px;
+    }
+    header nav ul li {
+        margin: 0 10px;
+    }
+}
+/* お問い合わせフォーム用スタイル */
+.contact-section h2 {
+    /* メインコンテンツh2と同じスタイル */
+    border-bottom: 2px solid #ccc;
+    padding-bottom: 10px;
+    margin-bottom: 30px;
+    color: #2c3e50;
+}
+
+.contact-form {
+    background-color: white;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #34495e;
+}
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; /* paddingを含めて幅を計算 */
+    font-size: 16px;
+}
+
+.form-group textarea {
+    resize: vertical; /* 縦方向のみリサイズ可能 */
+}
+
+.submit-button {
+    display: inline-block;
+    background-color: #2ecc71; /* 緑色 */
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1.1em;
+    transition: background-color 0.3s ease;
+}
+
+.submit-button:hover {
+    background-color: #27ae60; /* 少し濃い緑 */
+}
+
+.note {
+    color: #e74c3c; /* 赤色で注意喚起 */
+    font-size: 0.9em;
+    margin-bottom: 20px;
+    padding: 10px;
+    border: 1px dashed #e74c3c;
+}
